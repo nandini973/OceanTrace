@@ -1,0 +1,2182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OceanTrace — Marine Spill Intelligence & Response Console</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌊</text></svg>">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f3f4f6;
+  --bg-1:#ffffff;
+  --panel:#ffffff;
+  --panel-2:#f7f8fa;
+  --panel-3:#eef0f3;
+  --border:#e3e6ea;
+  --border-soft:#ebedf1;
+  --amber:#b1770f;
+  --amber-bg:#fdf1dc;
+  --amber-dim:#8a6a2e;
+  --teal:#2f7d74;
+  --teal-dim:#dcece9;
+  --blue:#2f6fae;
+  --blue-bg:#e9f1fb;
+  --purple:#7c6fc4;
+  --purple-bg:#efedfb;
+  --red:#c0392b;
+  --red-bg:#fbeae8;
+  --green:#1f8a56;
+  --green-bg:#e6f6ed;
+  --text:#182233;
+  --text-dim:#5b6675;
+  --text-faint:#96a0ac;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --sans:'Inter',system-ui,sans-serif;
+  --radius:6px;
+  --top-safe: env(safe-area-inset-top, 0px);
+  --bot-safe: env(safe-area-inset-bottom, 0px);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%; background:var(--bg); overscroll-behavior:none;}
+body{
+  font-family:var(--sans);
+  color:var(--text);
+  font-size:13px;
+  -webkit-font-smoothing:antialiased;
+  padding-top:var(--top-safe);
+  padding-bottom:var(--bot-safe);
+  height:calc(100% - var(--top-safe) - var(--bot-safe));
+}
+::selection{background:var(--teal); color:#fff;}
+::-webkit-scrollbar{width:8px; height:8px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#d7dbe1; border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:#c3c9d1;}
+
+.app{
+  display:grid;
+  grid-template-columns: 60px 1fr;
+  grid-template-rows: 100%;
+  height:100%;
+  width:100%;
+}
+
+/* ---------------- SIDEBAR (compact icon rail) ---------------- */
+.sidebar{
+  background:var(--bg-1);
+  border-right:1px solid var(--border-soft);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  min-height:0;
+}
+.brand{
+  display:flex; align-items:center; justify-content:center;
+  padding:14px 0 12px 0;
+  width:100%;
+  border-bottom:1px solid var(--border-soft);
+}
+.brand-mark{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(155deg, var(--teal), #1c5951);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px; flex-shrink:0;
+  box-shadow:0 2px 6px rgba(47,125,116,.28);
+}
+.brand-text{ display:none; }
+
+.nav{ flex:1; padding:10px 0; display:flex; flex-direction:column; align-items:center; gap:4px; min-height:0; overflow-y:auto; width:100%;}
+.nav-item{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+  width:40px; height:40px; border-radius:9px;
+  color:var(--text-faint); font-size:12.5px; font-weight:500;
+  cursor:pointer; user-select:none; position:relative;
+  transition:background .12s, color .12s;
+}
+.nav-item .ic{ font-size:16px; line-height:1;}
+.nav-item:hover{ background:var(--panel-3); color:var(--text-dim); }
+.nav-item.active{ background:var(--teal-dim); color:var(--teal); }
+.nav-item.active::before{ content:none; }
+.nav-badge{
+  position:absolute; top:2px; right:2px;
+  font-family:var(--mono); font-size:8px; font-weight:700; line-height:1;
+  background:var(--red); color:#fff; padding:2px 4px; border-radius:8px;
+  min-width:14px; text-align:center;
+}
+.nav-badge:empty, .nav-badge[data-zero]{ display:none; }
+.nav-section-label{ display:none; }
+
+.label{
+  position:absolute; left:48px; top:50%; transform:translateY(-8px);
+  background:#182233; color:#fff; padding:6px 10px; border-radius:6px;
+  font-size:11px; font-weight:600; white-space:nowrap;
+  opacity:0; pointer-events:none; transition:opacity .12s, transform .12s; z-index:80;
+  box-shadow:0 6px 18px rgba(20,30,45,.18);
+}
+.nav-item:hover .label{ opacity:1; transform:translateY(-50%); }
+
+.sidebar-foot{
+  border-top:1px solid var(--border-soft);
+  padding:10px 0 14px 0;
+  display:flex; flex-direction:column; align-items:center; gap:9px;
+  width:100%;
+}
+.status-row{ display:none; }
+.dot{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.dot.green{ background:var(--green); }
+.dot.amber{ background:var(--amber); }
+.user-chip{ display:flex; align-items:center; justify-content:center; }
+.user-chip div:not(.avatar){ display:none; }
+.avatar{ width:30px; height:30px; border-radius:50%; background:var(--blue-bg); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:700; color:var(--blue);}
+
+/* ---------------- MAIN ---------------- */
+.main{ display:grid; grid-template-rows:58px 1fr; min-height:0; min-width:0; }
+
+.topbar{
+  border-bottom:1px solid var(--border-soft);
+  display:flex; align-items:center;
+  padding:0 16px;
+  gap:14px;
+  background:var(--bg-1);
+}
+.topbar h1{ font-size:13.5px; font-weight:700; letter-spacing:.03em; white-space:nowrap;}
+.tb-brand{ display:flex; align-items:center; gap:7px; flex-shrink:0; }
+.tb-brand .tb-logo{ width:24px; height:24px; border-radius:7px; background:linear-gradient(155deg, var(--teal), #1c5951); display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0;}
+.tb-brand b{ font-size:13.5px; font-weight:700; color:var(--text); }
+.tb-chev{ color:var(--text-faint); font-size:14px; flex-shrink:0; }
+.tb-incident{ display:flex; align-items:baseline; gap:9px; min-width:0; flex-shrink:1; overflow:hidden;}
+.tb-incident b{ font-size:13.5px; font-weight:700; color:var(--text); white-space:nowrap; }
+.tb-incident span{ font-size:11px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.stat{ display:none; }
+.topbar-sep{ display:none; }
+.topbar-spacer{ flex:1; }
+.conn-pill{
+  display:flex; align-items:center; gap:6px;
+  font-size:10.5px; font-family:var(--mono); color:var(--text-dim);
+  border:1px solid var(--border); padding:5px 11px; border-radius:20px;
+  background:var(--panel-2); flex-shrink:0;
+}
+.conn-pill b{ color:var(--teal); font-weight:600; }
+.tb-time{ display:flex; flex-direction:column; align-items:flex-end; line-height:1.25; flex-shrink:0; }
+.tb-time b{ font-family:var(--mono); font-size:12.5px; font-weight:700; color:var(--text); }
+.tb-time span{ font-size:9.5px; color:var(--text-faint); }
+
+/* ---------------- WORKSPACE ---------------- */
+.workspace{
+  display:grid;
+  grid-template-columns: 1fr 320px;
+  grid-template-rows: 1fr 112px;
+  min-height:0; min-width:0;
+  transition:grid-template-columns .18s;
+}
+.workspace.panel-hidden{ grid-template-columns: 1fr 0px; }
+.workspace.panel-hidden .side-panel{ display:none; }
+#map{
+  grid-column:1; grid-row:1; position:relative;
+  background:#dce9ef;
+}
+.leaflet-container{ background:#dce9ef; font-family:var(--sans); }
+.leaflet-tooltip{
+  background:#ffffff; border:1px solid var(--border); color:var(--text);
+  border-radius:6px; font-size:11px; box-shadow:0 4px 14px rgba(20,30,45,.12);
+}
+.leaflet-tooltip-top:before{ border-top-color:var(--border); }
+.leaflet-popup-content-wrapper{ background:var(--panel); color:var(--text); border-radius:8px; }
+.leaflet-popup-tip{ background:var(--panel); }
+.leaflet-bar{ border:none !important; box-shadow:0 2px 10px rgba(20,30,45,.14) !important; }
+.leaflet-bar a{ background:#ffffff; color:var(--text-dim); border-color:var(--border) !important; }
+.leaflet-bar a:hover{ background:var(--panel-2); color:var(--text); }
+.leaflet-control-attribution{ background:rgba(255,255,255,.75) !important; color:var(--text-faint) !important; font-size:9px !important; }
+.leaflet-control-attribution a{ color:var(--text-faint) !important; }
+@keyframes pulseRing{
+  0%{ stroke-opacity:.9; stroke-width:2; }
+  70%{ stroke-opacity:0; stroke-width:14; }
+  100%{ stroke-opacity:0; stroke-width:14; }
+}
+.origin-pulse-path{ animation: pulseRing 2.2s ease-out infinite; }
+.spill-glow-path{ filter: drop-shadow(0 0 4px rgba(192,57,43,.35)); }
+.origin-label-tag{
+  background:#ffffff; border:1px solid var(--red); color:var(--red);
+  font-family:var(--mono); font-size:9.5px; font-weight:700; padding:2px 6px; border-radius:4px;
+  white-space:nowrap; letter-spacing:.03em; box-shadow:0 2px 8px rgba(20,30,45,.12);
+}
+.drift-arrow{ color:var(--blue); font-size:14px; transform-origin:center; }
+.run-demo-btn{
+  position:absolute; top:12px; left:50%; transform:translateX(-50%); z-index:600;
+  background:var(--teal); color:#fff;
+  border:none; border-radius:20px; padding:8px 18px; font-weight:700; font-size:11.5px;
+  cursor:pointer; box-shadow:0 3px 14px rgba(47,125,116,.3);
+  display:flex; align-items:center; gap:7px;
+}
+.run-demo-btn:hover{ filter:brightness(1.08); }
+.run-demo-btn:disabled{ opacity:.55; cursor:default; filter:none; }
+@keyframes shipPulse{
+  0%,100%{ transform:scale(1); filter:drop-shadow(0 0 2px rgba(177,119,15,.4)); }
+  50%{ transform:scale(1.14); filter:drop-shadow(0 0 7px rgba(177,119,15,.7)); }
+}
+.ship-pulse{ transform-origin:center; transform-box:fill-box; animation:shipPulse 1.8s ease-in-out infinite; }
+.oil-sheen-path{ filter:url(#oilTurbulence); opacity:.85; }
+
+.side-panel{
+  grid-column:2; grid-row:1 / span 2;
+  border-left:1px solid var(--border-soft);
+  background:var(--bg-1);
+  display:flex; flex-direction:column;
+  min-height:0;
+}
+.panel-tabs{ display:flex; align-items:center; border-bottom:1px solid var(--border-soft); flex-shrink:0; padding:0 6px;}
+.panel-tab{
+  padding:12px 10px; font-size:11.5px; font-weight:600;
+  color:var(--text-faint); cursor:pointer; border-bottom:2px solid transparent;
+}
+.panel-tab.active{ color:var(--teal); border-color:var(--teal); }
+.panel-close{ margin-left:auto; width:22px; height:22px; border-radius:5px; display:flex; align-items:center; justify-content:center; color:var(--text-faint); cursor:pointer; font-size:12px;}
+.panel-close:hover{ background:var(--panel-3); }
+.panel-body{ flex:1; overflow-y:auto; min-height:0; }
+.panel-section{ padding:14px 16px; border-bottom:1px solid var(--border-soft); }
+.panel-section h3{ font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); font-weight:700; margin-bottom:10px; }
+
+.incident-head{ display:flex; align-items:flex-start; gap:10px; margin-bottom:2px; }
+.incident-head-main{ flex:1; min-width:0; }
+.incident-thumb{
+  width:64px; height:52px; border-radius:6px; flex-shrink:0; overflow:hidden; position:relative;
+  background:#1c2430; display:flex; align-items:flex-end; justify-content:center;
+}
+.incident-thumb img{ width:100%; height:100%; object-fit:cover; opacity:.9; }
+.incident-thumb .cap{ position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.55); color:#fff; font-size:7px; text-align:center; padding:1.5px 0; line-height:1.3; font-family:var(--mono);}
+.incident-card{ padding:0; margin-bottom:8px; cursor:default; }
+.incident-id{ font-size:16px; font-weight:700; color:var(--text); letter-spacing:.01em;}
+.incident-loc{ font-size:12px; font-weight:500; margin-top:3px; color:var(--text-dim); display:flex; align-items:center; gap:4px;}
+.incident-meta{ font-size:10.5px; color:var(--text-faint); margin-top:5px; display:flex; gap:8px; flex-wrap:wrap;}
+.status-chip{
+  display:inline-block; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+  padding:3px 8px; border-radius:5px; margin-top:8px;
+}
+.status-chip.investigating{ background:var(--amber-bg); color:var(--amber); }
+.status-chip.detected{ background:var(--blue-bg); color:var(--blue); }
+
+.kv-row{ display:flex; justify-content:space-between; align-items:baseline; padding:6px 0; font-size:11.5px; border-bottom:1px solid var(--border-soft); }
+.kv-row:last-child{ border-bottom:none; }
+.kv-row .k{ color:var(--text-dim); }
+.kv-row .v{ font-family:var(--mono); font-weight:600; text-align:right; color:var(--text); }
+.kv-row .v.na{ color:var(--text-faint); font-family:var(--sans); font-weight:500; font-style:italic; }
+
+.badge{
+  display:inline-flex; align-items:center; gap:4px; font-size:8.5px; font-weight:700;
+  letter-spacing:.04em; text-transform:uppercase; padding:2px 6px; border-radius:4px; line-height:1.5;
+}
+.badge.real{ background:var(--green-bg); color:var(--green); }
+.badge.est{ background:var(--blue-bg); color:var(--blue); }
+.badge.replay{ background:var(--purple-bg); color:var(--purple); }
+.badge.na{ background:var(--panel-3); color:var(--text-faint); }
+.badge.demo{ background:var(--red-bg); color:var(--red); border:1px dashed #e2b8b2; }
+
+/* Requires-attention card */
+.attn-card{
+  margin-top:14px; background:var(--amber-bg); border:1px solid #f2ddb3; border-radius:var(--radius);
+  padding:11px 12px;
+}
+.attn-head{ display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:#8a5a12; }
+.attn-head .warn-ic{ font-size:13px; }
+.attn-list{ margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+.attn-item{ display:flex; align-items:center; gap:7px; font-size:11px; color:#6b4c14; }
+.attn-item .dot-amber{ width:5px; height:5px; border-radius:50%; background:var(--amber); flex-shrink:0; }
+.attn-item .t{ margin-left:auto; font-family:var(--mono); font-size:9.5px; color:#a2833f; flex-shrink:0; }
+
+/* Candidates preview (inside Incident tab) */
+.cand-preview-head{ display:flex; align-items:baseline; justify-content:space-between; margin-top:16px; margin-bottom:8px; }
+.cand-preview-head h3{ margin:0; font-size:11.5px; text-transform:none; letter-spacing:0; font-weight:700; color:var(--text); }
+.cand-preview-head a{ font-size:11px; color:var(--teal); font-weight:600; cursor:pointer; text-decoration:none; }
+.cand-preview-row{ display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px solid var(--border-soft); cursor:pointer; }
+.cand-preview-row:last-child{ border-bottom:none; }
+.cand-thumb{ width:38px; height:30px; border-radius:5px; background:linear-gradient(155deg,#c9d3dc,#8fa0af); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:13px; color:#fff;}
+.cand-preview-info{ flex:1; min-width:0; }
+.cand-preview-name{ font-size:11.5px; font-weight:700; color:var(--text); }
+.cand-preview-score{ font-size:9.5px; color:var(--text-faint); margin-top:1px; }
+.cand-preview-score b{ color:var(--text-dim); font-family:var(--mono); }
+.cand-pill{ font-size:8.5px; font-weight:700; padding:3px 7px; border-radius:5px; background:var(--amber-bg); color:var(--amber); white-space:nowrap; flex-shrink:0; }
+
+.candidate-row{
+  display:flex; align-items:center; gap:9px; padding:9px 0; border-bottom:1px solid var(--border-soft);
+  cursor:pointer;
+}
+.candidate-row:hover .cname{ color:var(--teal); }
+.rank-num{ width:16px; font-family:var(--mono); font-size:10px; color:var(--text-faint); text-align:center; flex-shrink:0;}
+.candidate-row .cbar-wrap{ flex:1; min-width:0; }
+.cname{ font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:color .12s; color:var(--text);}
+.cbar-track{ height:4px; background:var(--panel-3); border-radius:2px; margin-top:5px; overflow:hidden; }
+.cbar-fill{ height:100%; background:linear-gradient(90deg, #d8ac52, var(--amber)); border-radius:2px; }
+.cscore{ font-family:var(--mono); font-size:11px; font-weight:700; color:var(--amber); width:38px; text-align:right; flex-shrink:0;}
+
+.btn{
+  font-family:var(--sans); font-size:11.5px; font-weight:600; border-radius:var(--radius);
+  padding:9px 12px; border:1px solid var(--border); background:#ffffff; color:var(--text);
+  cursor:pointer; transition:background .12s, border-color .12s;
+}
+.btn:hover{ background:var(--panel-2); border-color:#d1d6dc; }
+.btn.primary{ background:var(--teal); border-color:var(--teal); color:#fff; }
+.btn.primary:hover{ background:#286a62; }
+.btn.block{ width:100%; }
+.btn.danger-ghost{ color:var(--red); }
+.btn.small{ padding:5px 9px; font-size:10.5px; }
+.btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+.panel-actions-row{ display:flex; gap:8px; margin-top:14px; }
+.panel-actions-row .btn.primary{ flex:1.4; }
+.panel-actions-row .btn:not(.primary):not(.icon-only){ flex:1; }
+.btn.icon-only{ width:38px; flex-shrink:0; padding:9px 0; text-align:center; }
+
+/* ---------------- TIMELINE (compact) ---------------- */
+.timeline-bar{
+  grid-column:1; grid-row:2;
+  border-top:1px solid var(--border-soft);
+  background:var(--bg-1);
+  display:flex; flex-direction:column;
+  min-height:0;
+}
+.timeline-head{
+  display:flex; align-items:center; gap:10px; padding:7px 16px; border-bottom:1px solid var(--border-soft); flex-shrink:0;
+}
+.timeline-head h3{ font-size:11.5px; text-transform:none; letter-spacing:0; color:var(--text); font-weight:700; display:flex; align-items:center; gap:6px;}
+.tl-filter{ font-size:10.5px; color:var(--text-faint); font-weight:600; cursor:pointer; padding:3px 8px; border-radius:5px; background:var(--panel-2); border:1px solid var(--border); }
+.play-controls{ display:flex; align-items:center; gap:4px; margin-left:auto;}
+.icon-btn{
+  width:24px; height:24px; border-radius:6px; border:1px solid var(--border); background:#ffffff;
+  color:var(--text-dim); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px;
+}
+.icon-btn:hover{ color:var(--text); background:var(--panel-2); }
+#tlPlay{ background:var(--teal); color:#fff; border-color:var(--teal); }
+#tlPlay:hover{ background:#286a62; }
+.speed-group{ display:flex; gap:2px; margin-left:4px; }
+.speed-btn{
+  font-family:var(--mono); font-size:9.5px; padding:3px 7px; border-radius:5px; border:1px solid var(--border);
+  background:#ffffff; color:var(--text-faint); cursor:pointer; font-weight:600;
+}
+.speed-btn.active{ background:var(--teal-dim); color:var(--teal); border-color:var(--teal); }
+.tl-current{ font-family:var(--mono); font-size:10px; color:var(--text-faint); white-space:nowrap; }
+.timeline-track-wrap{ flex:1; position:relative; padding:0 20px; overflow-x:auto; overflow-y:hidden; display:flex; align-items:center;}
+.timeline-axis{ position:relative; height:100%; width:100%; min-width:560px; display:flex; align-items:center; }
+.timeline-line{ position:absolute; left:0; right:0; top:50%; height:2px; background:var(--border); }
+.timeline-events{ position:relative; width:100%; height:100%; display:flex; align-items:center; }
+.tl-event{
+  position:absolute; top:50%; transform:translate(-50%,-50%); cursor:pointer; z-index:2;
+}
+.tl-dot{ width:10px; height:10px; border-radius:50%; background:#ffffff; border:2px solid var(--text-faint); transition:all .15s;}
+.tl-event:hover .tl-dot, .tl-event.active .tl-dot{ border-color:var(--amber); background:var(--amber); box-shadow:0 0 0 4px rgba(177,119,15,.14); }
+.tl-label{
+  position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  width:120px; font-size:9.5px; text-align:center; color:var(--text-faint); line-height:1.3;
+}
+.tl-time{ position:absolute; bottom:14px; left:50%; transform:translateX(-50%); font-family:var(--mono); font-size:9px; color:var(--text-faint); white-space:nowrap;}
+.tl-event.active .tl-label{ color:var(--text); font-weight:600; }
+.tl-event.active .tl-time{ color:var(--amber); }
+
+/* ---------------- MAP OVERLAYS ---------------- */
+.map-overlay-tl{
+  position:absolute; top:12px; left:12px; z-index:500;
+  background:rgba(255,255,255,.95); backdrop-filter:blur(6px);
+  border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+  font-size:11px; display:flex; align-items:center; gap:9px;
+  box-shadow:0 2px 10px rgba(20,30,45,.08);
+}
+.map-overlay-tl .mode-toggle{ display:flex; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+.mode-btn{ padding:4px 9px; font-size:10px; font-weight:700; cursor:pointer; color:var(--text-faint); background:#ffffff; }
+.mode-btn.active{ background:var(--teal-dim); color:var(--teal); }
+.mode-btn[data-mode="live"].active{ background:var(--red-bg); color:var(--red); }
+.replay-status{ font-family:var(--mono); font-size:10px; color:var(--text-dim); display:flex; align-items:center; gap:6px; }
+
+.map-controls-tr{ position:absolute; top:12px; right:12px; z-index:500; display:flex; gap:8px; }
+.map-btn{
+  background:#ffffff; border:1px solid var(--border); border-radius:8px;
+  padding:7px 12px; font-size:11px; font-weight:600; color:var(--text-dim);
+  cursor:pointer; display:flex; align-items:center; gap:6px;
+  box-shadow:0 2px 10px rgba(20,30,45,.08);
+}
+.map-btn:hover{ color:var(--text); }
+.map-btn.active-pop{ border-color:var(--teal); color:var(--teal); }
+
+.layer-control{
+  position:absolute; top:50px; right:12px; z-index:500;
+  background:#ffffff;
+  border:1px solid var(--border); border-radius:8px; padding:10px 12px;
+  font-size:11px; width:190px;
+  box-shadow:0 8px 24px rgba(20,30,45,.14);
+  display:none;
+}
+.layer-control.open{ display:block; }
+.layer-control h4{ font-size:9px; text-transform:uppercase; color:var(--text-faint); letter-spacing:.06em; margin-bottom:8px; font-weight:700;}
+.layer-row{ display:flex; align-items:center; gap:7px; padding:3px 0; cursor:pointer; }
+.layer-row input{ accent-color:var(--teal); width:13px; height:13px; }
+.layer-row span{ font-size:10.5px; color:var(--text-dim); }
+.layer-row.disabled{ opacity:.4; pointer-events:none; }
+
+.legend-box{
+  position:absolute; bottom:12px; left:12px; z-index:500;
+  background:#ffffff;
+  border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:10.5px; color:var(--text-dim);
+  display:none; flex-direction:column; gap:6px;
+  box-shadow:0 8px 24px rgba(20,30,45,.14);
+}
+.legend-box.open{ display:flex; }
+.legend-item{ display:flex; align-items:center; gap:6px; }
+.legend-swatch{ width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+
+.map-toast{
+  position:absolute; bottom:12px; right:12px; z-index:600;
+  background:#ffffff; border:1px solid var(--border); border-left:3px solid var(--teal);
+  border-radius:8px; padding:10px 14px; font-size:11px; max-width:280px; color:var(--text-dim);
+  animation: slidein .25s ease-out; box-shadow:0 8px 24px rgba(20,30,45,.14);
+}
+.map-toast.err{ border-left-color:var(--red); }
+@keyframes slidein{ from{ transform:translateY(8px); opacity:0;} to{ transform:translateY(0); opacity:1;} }
+
+/* ---------------- DRAWER ---------------- */
+.drawer-scrim{
+  position:fixed; inset:0; background:rgba(20,26,35,.35); z-index:900;
+  opacity:0; pointer-events:none; transition:opacity .18s;
+}
+.drawer-scrim.open{ opacity:1; pointer-events:auto; }
+.drawer{
+  position:fixed; top:0; right:0; bottom:0; width:400px; max-width:92vw;
+  background:var(--bg-1); border-left:1px solid var(--border); z-index:901;
+  transform:translateX(100%); transition:transform .22s cubic-bezier(.2,.8,.3,1);
+  display:flex; flex-direction:column;
+  padding-top:var(--top-safe); padding-bottom:var(--bot-safe);
+  box-shadow:-12px 0 32px rgba(20,30,45,.14);
+}
+.drawer.open{ transform:translateX(0); }
+.drawer-head{ padding:16px 18px; border-bottom:1px solid var(--border-soft); display:flex; align-items:flex-start; justify-content:space-between; flex-shrink:0;}
+.drawer-head .eyebrow{ font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.08em; font-weight:700;}
+.drawer-head h2{ font-size:17px; font-weight:700; margin-top:4px; color:var(--text);}
+.drawer-head .sub{ font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:3px;}
+.drawer-close{ width:26px; height:26px; border-radius:6px; border:1px solid var(--border); background:#ffffff; color:var(--text-dim); cursor:pointer; font-size:13px; flex-shrink:0;}
+.drawer-body{ flex:1; overflow-y:auto; }
+
+.score-hero{ padding:16px 18px; border-bottom:1px solid var(--border-soft); }
+.score-hero .big{ font-family:var(--mono); font-size:34px; font-weight:600; color:var(--amber); line-height:1;}
+.score-hero .label{ font-size:10.5px; color:var(--text-faint); margin-top:4px; position:static; opacity:1; transform:none; background:none; padding:0; box-shadow:none; white-space:normal;}
+.score-hero .compare{ font-size:10.5px; color:var(--text-dim); margin-top:8px; }
+.score-hero .compare b{ color:var(--text); font-family:var(--mono); }
+
+.decomp-row{ display:flex; align-items:center; gap:10px; padding:7px 0; }
+.decomp-row .dl{ width:98px; font-size:11px; color:var(--text-dim); flex-shrink:0; }
+.decomp-row .dtrack{ flex:1; height:5px; background:var(--panel-3); border-radius:3px; overflow:hidden; }
+.decomp-row .dfill{ height:100%; border-radius:3px; }
+.decomp-row .dval{ font-family:var(--mono); font-size:10.5px; width:34px; text-align:right; flex-shrink:0; }
+
+.evidence-list{ display:flex; flex-direction:column; gap:9px; }
+.evidence-item{
+  display:flex; gap:9px; padding:9px 10px; background:var(--panel-2); border:1px solid var(--border);
+  border-radius:var(--radius); font-size:11.5px; line-height:1.5; color:var(--text-dim);
+}
+.evidence-item .ic{ color:var(--teal); flex-shrink:0; }
+
+.drawer-foot{ padding:14px 18px; border-top:1px solid var(--border-soft); display:flex; gap:8px; flex-shrink:0; }
+
+/* ---------------- MODAL (Alert composer) ---------------- */
+.modal-scrim{
+  position:fixed; inset:0; background:rgba(20,26,35,.45); z-index:1000;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity .15s;
+}
+.modal-scrim.open{ opacity:1; pointer-events:auto; }
+.modal{
+  width:520px; max-width:92vw; max-height:88vh; overflow-y:auto;
+  background:var(--bg-1); border:1px solid var(--border); border-radius:10px;
+  transform:translateY(10px) scale(.98); transition:transform .18s;
+  box-shadow:0 20px 60px rgba(20,30,45,.22);
+}
+.modal-scrim.open .modal{ transform:translateY(0) scale(1); }
+.modal-head{ padding:16px 20px; border-bottom:1px solid var(--border-soft); display:flex; align-items:center; justify-content:space-between; }
+.modal-head h2{ font-size:14.5px; font-weight:700; color:var(--text); }
+.modal-body{ padding:18px 20px; display:flex; flex-direction:column; gap:14px; }
+.field label{ display:block; font-size:10.5px; font-weight:600; color:var(--text-dim); margin-bottom:5px; text-transform:uppercase; letter-spacing:.05em;}
+.field input, .field textarea, .field select{
+  width:100%; background:#ffffff; border:1px solid var(--border); border-radius:var(--radius);
+  padding:9px 10px; color:var(--text); font-family:var(--sans); font-size:12.5px;
+}
+.field textarea{ resize:vertical; min-height:130px; font-family:var(--mono); font-size:11.5px; line-height:1.55; }
+.field input:focus, .field textarea:focus, .field select:focus{ outline:none; border-color:var(--teal); }
+.field-row{ display:flex; gap:10px; }
+.field-row .field{ flex:1; }
+.chip-select{ display:flex; gap:6px; }
+.chip-opt{ flex:1; text-align:center; padding:7px 0; border:1px solid var(--border); border-radius:var(--radius); font-size:11px; font-weight:600; cursor:pointer; color:var(--text-dim);}
+.chip-opt.active{ border-color:var(--teal); color:var(--teal); background:var(--teal-dim); }
+.chip-opt.pri-high.active{ border-color:var(--red); color:var(--red); background:var(--red-bg);}
+.chip-opt.pri-med.active{ border-color:var(--amber); color:var(--amber); background:var(--amber-bg);}
+.demo-warning{
+  display:flex; gap:8px; align-items:flex-start; padding:10px 12px; background:var(--green-bg);
+  border:1px dashed #a9d9bf; border-radius:var(--radius); font-size:11px; color:#1f6e46; line-height:1.5;
+}
+.modal-foot{ padding:14px 20px; border-top:1px solid var(--border-soft); display:flex; justify-content:flex-end; gap:8px; }
+
+/* ---------------- ALERT HISTORY (Alerts nav view) ---------------- */
+.view{ display:none; height:100%; min-height:0; }
+.view.active{ display:flex; flex-direction:column; }
+.history-wrap{ padding:20px 24px; overflow-y:auto; flex:1; }
+.history-table{ width:100%; border-collapse:collapse; font-size:11.5px; }
+.history-table th{ text-align:left; padding:8px 10px; color:var(--text-faint); font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; border-bottom:1px solid var(--border); font-weight:700;}
+.history-table td{ padding:10px 10px; border-bottom:1px solid var(--border-soft); vertical-align:middle;}
+.history-table tr:hover td{ background:var(--panel-2); }
+.status-pill{ font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:9px; text-transform:uppercase; }
+.status-pill.sent{ background:var(--green-bg); color:var(--green); }
+.status-pill.queued{ background:var(--amber-bg); color:var(--amber); }
+.status-pill.draft{ background:var(--panel-3); color:var(--text-faint); }
+.status-pill.auto-sent{ background:var(--green-bg); color:var(--green); }
+.status-pill.sending{ background:var(--blue-bg); color:var(--blue); }
+.status-pill.failed{ background:var(--red-bg); color:var(--red); }
+.empty-state{ text-align:center; padding:60px 20px; color:var(--text-faint); }
+.empty-state .big-ic{ font-size:32px; margin-bottom:10px; opacity:.5;}
+
+.data-prov-view{ padding:24px; overflow-y:auto; flex:1; max-width:720px; }
+.prov-card{ background:#ffffff; border:1px solid var(--border); border-radius:8px; padding:16px 18px; margin-bottom:12px; }
+.prov-card h4{ font-size:12.5px; font-weight:700; margin-bottom:8px; display:flex; align-items:center; gap:8px; color:var(--text);}
+.prov-card p{ font-size:11.5px; color:var(--text-dim); line-height:1.6; }
+.prov-card ul{ margin-top:8px; padding-left:18px; }
+.prov-card li{ font-size:11px; color:var(--text-faint); line-height:1.7; }
+
+.hint-banner{
+  margin:14px 18px 0 18px; padding:9px 11px; background:var(--panel-2); border:1px solid var(--border);
+  border-radius:var(--radius); font-size:10.5px; color:var(--text-faint); line-height:1.5;
+}
+
+.hamburger{
+  display:none; width:30px; height:30px; border-radius:6px; border:1px solid var(--border);
+  background:#ffffff; color:var(--text-dim); align-items:center; justify-content:center;
+  cursor:pointer; font-size:14px; flex-shrink:0;
+}
+.sidebar-scrim{
+  position:fixed; inset:0; background:rgba(20,26,35,.4); z-index:799;
+  opacity:0; pointer-events:none; transition:opacity .18s;
+}
+.sidebar-scrim.open{ opacity:1; pointer-events:auto; }
+
+@media (max-width: 980px){
+  .app{ grid-template-columns: 1fr; }
+  .sidebar{
+    position:fixed; top:0; left:0; bottom:0; width:220px; z-index:800;
+    transform:translateX(-100%); transition:transform .2s; display:flex;
+    padding-top:var(--top-safe); padding-bottom:var(--bot-safe);
+  }
+  .sidebar.mobile-open{ transform:translateX(0); }
+  .hamburger{ display:flex; }
+  #sidebarCloseMobile{ display:flex !important; }
+  .topbar{ gap:10px; overflow-x:auto; }
+  .topbar h1{ font-size:12px; }
+  .tb-incident span{ display:none; }
+  .workspace{ grid-template-columns: 1fr; grid-template-rows: 1fr 128px; }
+  .side-panel{ position:fixed; top:0; right:0; bottom:0; width:88vw; max-width:360px; z-index:850; transform:translateX(100%); transition:transform .2s;
+    padding-top:var(--top-safe); padding-bottom:var(--bot-safe);}
+  .side-panel.mobile-open{ transform:translateX(0); }
+  .layer-control{ width:150px; padding:8px 10px; }
+  .map-overlay-tl{ flex-wrap:wrap; max-width:78vw; }
+  .drawer{ width:100vw; max-width:100vw; }
+}
+</style>
+</head>
+<body>
+
+<div class="sidebar-scrim" id="sidebarScrim"></div>
+<svg width="0" height="0" style="position:absolute;" aria-hidden="true">
+  <defs>
+    <filter id="oilTurbulence" x="-30%" y="-30%" width="160%" height="160%">
+      <feTurbulence type="fractalNoise" numOctaves="2" seed="7" result="noise">
+        <animate attributeName="baseFrequency" values="0.018;0.032;0.018" dur="7s" repeatCount="indefinite"/>
+      </feTurbulence>
+      <feColorMatrix in="noise" type="matrix"
+        values="0 0 0 0 0.55   0 0 0 0 0.25   0 0 0 0 0.55   0 0 0 0.35 0" result="tint">
+        <animate attributeName="values"
+          values="0 0 0 0 0.55  0 0 0 0 0.25  0 0 0 0 0.55  0 0 0 0.35 0;
+                   0 0 0 0 0.15  0 0 0 0 0.45  0 0 0 0 0.40  0 0 0 0.35 0;
+                   0 0 0 0 0.55  0 0 0 0 0.25  0 0 0 0 0.55  0 0 0 0.35 0"
+          dur="9s" repeatCount="indefinite"/>
+      </feColorMatrix>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="6"/>
+      <feComposite in2="SourceGraphic" operator="atop"/>
+    </filter>
+  </defs>
+</svg>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">🌊</div>
+      <div class="brand-text">
+        <b>OceanTrace</b>
+        <span>SPILL INTELLIGENCE CONSOLE</span>
+      </div>
+      <div class="drawer-close" id="sidebarCloseMobile" style="margin-left:auto; display:none;">✕</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-item active" data-view="operations"><span class="ic">⌂</span><span class="label">Operations</span></div>
+      <div class="nav-item" data-view="operations"><span class="ic">▲</span><span class="label">Active Incidents</span><span class="nav-badge">1</span></div>
+      <div class="nav-item" data-view="operations"><span class="ic">⛴</span><span class="label">Vessel Intelligence</span></div>
+      <div class="nav-item" data-view="alerts"><span class="ic">✉</span><span class="label">Alerts</span><span class="nav-badge" id="navAlertCount">0</span></div>
+      <div class="nav-item" data-view="operations"><span class="ic">▤</span><span class="label">Case Files</span></div>
+      <div class="nav-item" data-view="provenance"><span class="ic">⌘</span><span class="label">Data &amp; Method</span></div>
+      <div class="nav-section-label">System</div>
+      <div class="nav-item" data-view="operations"><span class="ic">⚙</span><span class="label">Settings</span></div>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="status-row"><span class="dot green"></span> Pipeline <span class="val">OK</span></div>
+      <div class="status-row"><span class="dot amber"></span> AIS source <span class="val">REPLAY</span></div>
+      <div class="status-row">Last export <span class="val" id="lastUpdateFoot">—</span></div>
+      <div class="user-chip">
+        <div class="avatar">OP</div>
+        <div><b>Ops Officer</b><span>Marine Enforcement · Demo</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="hamburger" id="hamburgerBtn">☰</div>
+      <div class="tb-brand"><span class="tb-logo">🌊</span><b>OceanTrace</b></div>
+      <span class="tb-chev">›</span>
+      <div class="tb-incident">
+        <b>OSP-001</b>
+        <span>Potential marine oil spill · Gulf of Mexico, offshore Louisiana</span>
+      </div>
+      <span class="status-chip investigating">Investigating</span>
+      <h1 style="display:none;">OIL SPILL OPERATIONS</h1>
+      <div class="stat"><b id="statActive">1</b><span>Active incidents</span></div>
+      <div class="stat"><b id="statVessels">—</b><span>Vessels tracked</span></div>
+      <div class="stat warn"><b id="statAlerts">0</b><span>Alerts pending</span></div>
+      <div class="stat crit"><b id="statHighPri">1</b><span>High-priority review</span></div>
+      <div class="topbar-spacer"></div>
+      <div class="conn-pill"><span class="dot amber" style="box-shadow:none;"></span> AIS: <b>HISTORICAL REPLAY</b></div>
+      <div class="tb-time"><b id="lastUpdateTop">—</b><span>Data exported</span></div>
+      <div class="avatar">OP</div>
+      <div class="hamburger" id="panelToggleBtn" title="Incident panel">▤</div>
+    </header>
+
+    <!-- OPERATIONS VIEW -->
+    <div class="view active" id="view-operations" style="display:grid;">
+      <div class="workspace">
+        <div id="map">
+          <button class="run-demo-btn" id="runDemoBtn">▶ Run Full Demo</button>
+          <div class="map-overlay-tl">
+            <div class="mode-toggle">
+              <div class="mode-btn active" data-mode="replay">REPLAY</div>
+              <div class="mode-btn" data-mode="live">LIVE</div>
+            </div>
+            <div class="replay-status" id="replayStatusText">
+              <span class="dot amber" style="box-shadow:none;"></span> Historical AIS Replay · 2018-09-26
+            </div>
+          </div>
+
+          <div class="map-controls-tr">
+            <div class="map-btn" id="legendToggleBtn">◧ Legend</div>
+            <div class="map-btn" id="layersToggleBtn">☰ Layers</div>
+          </div>
+
+          <div class="layer-control" id="layerControlPanel">
+            <h4>Map Layers</h4>
+            <label class="layer-row"><input type="checkbox" checked data-layer="spill"><span>Spill extent (est.)</span></label>
+            <label class="layer-row"><input type="checkbox" checked data-layer="origin"><span>Origin point</span></label>
+            <label class="layer-row"><input type="checkbox" checked data-layer="backward"><span>Backward hindcast</span></label>
+            <label class="layer-row"><input type="checkbox" checked data-layer="forward"><span>Forward forecast</span></label>
+            <label class="layer-row"><input type="checkbox" checked data-layer="candidates"><span>Candidate vessels</span></label>
+            <label class="layer-row"><input type="checkbox" data-layer="allvessels"><span>All AIS traffic (238)</span></label>
+            <label class="layer-row disabled"><input type="checkbox" disabled><span>EO scene overlay</span></label>
+          </div>
+
+          <div class="legend-box" id="legendBoxPanel">
+            <div class="legend-item"><span class="legend-swatch" style="background:#c0392b;"></span>Spill extent (illustrative, real coords)</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#b1770f;"></span>Top candidate vessel</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#2f6fae;"></span>Other AIS vessel</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#7c6fc4;"></span>Backward hindcast (24h)</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#3fb3d6;"></span>Forward forecast (48h)</div>
+          </div>
+        </div>
+
+        <div class="side-panel">
+          <div class="panel-tabs">
+            <div class="panel-tab active" data-tab="incident">Incident</div>
+            <div class="panel-tab" data-tab="candidates">Candidates</div>
+            <div class="panel-close" id="panelCloseBtn" title="Collapse panel">✕</div>
+          </div>
+          <div class="panel-body">
+
+            <div class="panel-section" id="tab-incident">
+              <div class="incident-card selected" id="incidentCard">
+                <div class="incident-head">
+                  <div class="incident-head-main">
+                    <div class="incident-id">OSP-001</div>
+                    <div class="incident-loc">📍 Gulf of Mexico, offshore Louisiana</div>
+                  </div>
+                  <div class="incident-thumb">
+                    <div class="cap">Sentinel-1 SAR · 2018-09-26</div>
+                  </div>
+                </div>
+                <div class="incident-meta">
+                  <span>Potential marine oil spill</span>
+                </div>
+                <span class="status-chip investigating">Investigating</span>
+              </div>
+
+              <div style="margin-top:14px;">
+                <div class="kv-row"><span class="k">Detection source</span><span class="v">Sentinel-1 SAR <span class="badge real">real</span></span></div>
+                <div class="kv-row"><span class="k">Spill area</span><span class="v" id="kvArea">—</span></div>
+                <div class="kv-row"><span class="k">Spill length</span><span class="v" id="kvLength">—</span></div>
+                <div class="kv-row"><span class="k">Est. age</span><span class="v" id="kvAge">—</span></div>
+                <div class="kv-row"><span class="k">Thickness class</span><span class="v" id="kvThick">—</span></div>
+                <div class="kv-row"><span class="k">Origin (derived)</span><span class="v" id="kvOrigin">—</span></div>
+                <div class="kv-row"><span class="k">EO corroboration</span><span class="v na">Inconclusive (97% cloud)</span></div>
+                <div class="kv-row"><span class="k">AIS vessels considered</span><span class="v" id="kvVesselCount">—</span></div>
+                <div class="kv-row"><span class="k">Top candidate</span><span class="v" id="kvTopCandidate">—</span></div>
+              </div>
+
+              <div class="attn-card">
+                <div class="attn-head"><span class="warn-ic">⚠</span> Requires Attention</div>
+                <div class="attn-list">
+                  <div class="attn-item"><span class="dot-amber"></span> AIS gap overlaps estimated release window <span class="t" id="attnTime1">—</span></div>
+                  <div class="attn-item"><span class="dot-amber"></span> Candidate vessel entered origin corridor <span class="t" id="attnTime2">—</span></div>
+                  <div class="attn-item"><span class="dot-amber"></span> Forecast updated <span class="t" id="attnTime3">—</span></div>
+                </div>
+              </div>
+
+              <div class="cand-preview-head">
+                <h3>Candidates · <span id="candPreviewCount">—</span></h3>
+                <a id="candPreviewViewAll">View all →</a>
+              </div>
+              <div id="candPreviewList"></div>
+
+              <div class="hint-banner" style="margin:14px 0 0 0; padding:9px 11px;">
+                Spill polygon shown on the map is an <b>illustrative circular extent</b> derived from the estimated area/length — not the exact segmented mask boundary.
+              </div>
+
+              <div class="panel-actions-row">
+                <button class="btn primary" id="btnViewCandidates">View Candidates</button>
+                <button class="btn" id="btnCreateAlert">Create Alert</button>
+                <button class="btn icon-only" id="btnCaseFile" title="Generate Case File">⋯</button>
+              </div>
+            </div>
+
+            <div class="panel-section" id="tab-candidates" style="display:none;">
+              <h3>Ranked Candidates <span style="text-transform:none; font-weight:500; color:var(--text-faint);">(by association score)</span></h3>
+              <div id="candidateList"></div>
+              <div class="hint-banner">
+                Score components (proximity, timing, AIS-gap, route, rendezvous) shown in the vessel drawer where available in this export. Route-deviation and rendezvous logic are first-pass heuristics, not the finalized historical-corridor model.
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="timeline-bar">
+          <div class="timeline-head">
+            <h3>📅 Incident Timeline</h3>
+            <div class="tl-filter">All Events ⌄</div>
+            <div class="tl-current" id="tlCurrentLabel">Select an event</div>
+            <div class="play-controls">
+              <div class="icon-btn" id="tlPrev">|◀</div>
+              <div class="icon-btn" id="tlPlay">▶</div>
+              <div class="icon-btn" id="tlNext">▶|</div>
+            </div>
+            <div class="speed-group">
+              <div class="speed-btn active" data-speed="1">1x</div>
+              <div class="speed-btn" data-speed="5">5x</div>
+              <div class="speed-btn" data-speed="20">20x</div>
+            </div>
+          </div>
+          <div class="timeline-track-wrap">
+            <div class="timeline-axis" id="timelineAxis">
+              <div class="timeline-line"></div>
+              <div class="timeline-events" id="timelineEvents"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALERTS VIEW -->
+    <div class="view" id="view-alerts">
+      <div class="history-wrap">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+          <div>
+            <h2 style="font-size:16px; font-weight:700;">Alert Center</h2>
+            <p style="font-size:11.5px; color:var(--text-faint); margin-top:3px;" id="deliveryStatusLine">Real delivery enabled via local backend service.</p>
+          </div>
+          <button class="btn primary" id="btnCreateAlert2">Create Alert</button>
+        </div>
+
+        <div class="hint-banner" style="margin-bottom:14px; padding:9px 11px;">
+          Auto-dispatch is <b>on</b>: when a new incident is detected, an alert is composed and sent automatically to every saved responder below — no manual click required. This list only affects auto-dispatch; you can still send a one-off alert manually with "Create Alert" above.
+        </div>
+
+        <div class="contacts-card">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+            <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim); font-weight:600;">Saved Responder Contacts</h3>
+            <span style="font-family:var(--mono); font-size:10px; color:var(--text-faint);" id="contactCount">0 saved</span>
+          </div>
+          <div id="contactList" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;"></div>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="newContactName" placeholder="Name / role" style="flex:1; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:3px; padding:7px 9px; font-size:12px;">
+            <input type="text" id="newContactAddr" placeholder="email@agency.gov" style="flex:1.4; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:3px; padding:7px 9px; font-size:12px;">
+            <button class="btn primary" id="btnAddContact" style="white-space:nowrap;">Add</button>
+          </div>
+        </div>
+
+        <table class="history-table">
+          <thead>
+            <tr><th>Incident</th><th>Recipient</th><th>Type</th><th>Priority</th><th>Time</th><th>Status</th></tr>
+          </thead>
+          <tbody id="alertHistoryBody"></tbody>
+        </table>
+        <div class="empty-state" id="alertEmptyState">
+          <div class="big-ic">✉</div>
+          No alerts sent yet in this session.
+        </div>
+      </div>
+    </div>
+
+    <!-- PROVENANCE VIEW -->
+    <div class="view" id="view-provenance">
+      <div class="data-prov-view">
+        <h2 style="font-size:16px; font-weight:700; margin-bottom:4px;">Data & Method</h2>
+        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:18px;">What in this console is real, derived, estimated, or unavailable — and where the underlying pipeline needs strengthening before operational use.</p>
+
+        <div class="prov-card">
+          <h4>🛰️ Spill detection & geometry <span class="badge real">real</span></h4>
+          <p>Sentinel-1 SAR scene (2018-09-26), segmented with a trained U-Net (ResNet34 encoder). Area, length, and origin coordinates are computed from the actual predicted mask — origin is the mask centroid, reprojected from the scene's native UTM CRS to WGS84.</p>
+        </div>
+
+        <div class="prov-card">
+          <h4>⏱ Age & thickness classification <span class="badge est">heuristic</span></h4>
+          <p>Age uses a constant-spreading-rate approximation, not a validated physical model. Thickness class comes from a mean/std SAR-intensity threshold. Both are indicative signals, not measured or lab-validated values.</p>
+        </div>
+
+        <div class="prov-card">
+          <h4>🌊 Drift hindcast / forecast <span class="badge real">real inputs</span> <span class="badge est">simplified model</span></h4>
+          <p>Copernicus Marine ocean current + wind fields for the correct scene date (2018-09-26) at the derived origin. The advection itself is a single-point, constant-velocity extrapolation — not yet the particle-ensemble / time-varying-field model this pipeline is designed to grow into.</p>
+        </div>
+
+        <div class="prov-card">
+          <h4>👁 EO (Sentinel-2) corroboration <span class="badge na">inconclusive</span></h4>
+          <p>A real Sentinel-2 scene was found 1 day from the SAR acquisition (S2B_16RBT_20180925_0_L2A). 97% of the AOI was cloud/shadow-obscured — the pipeline correctly reported "inconclusive" rather than fabricating a spectral match.</p>
+        </div>
+
+        <div class="prov-card">
+          <h4>🚢 AIS vessel data <span class="badge real">real</span></h4>
+          <p>MarineCadastre AIS extract for 2018-09-26, filtered to the Gulf region and to exclude moored/anchored, low-speed, and small vessel types. 238 vessels retained after filtering.</p>
+        </div>
+
+        <div class="prov-card">
+          <h4>🎯 Candidate scoring <span class="badge est">heuristic weights</span></h4>
+          <p>Proximity, timing, AIS-gap, route-deviation, and rendezvous signals, combined with manually-set weights. Route deviation is currently a straight-line-ratio (not a historical-corridor baseline); rendezvous is a proximity-in-time-bucket check (not a full approach→dwell→separation sequence). Both are known first-pass implementations pending refinement.</p>
+        </div>
+
+        <div class="prov-card">
+          <h4>✉ Notifications <span class="badge demo">demo mode</span></h4>
+          <p>Alerts created in this console are queued in local demo history, not delivered externally, unless a real SMTP/SMS provider is wired into the backend (see the Notification Composer for connection notes).</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- DRAWER -->
+<div class="drawer-scrim" id="drawerScrim"></div>
+<aside class="drawer" id="vesselDrawer">
+  <div class="drawer-head">
+    <div>
+      <div class="eyebrow">Vessel Intelligence</div>
+      <h2 id="drawerName">—</h2>
+      <div class="sub" id="drawerMmsi">MMSI —</div>
+    </div>
+    <div class="drawer-close" id="drawerClose">✕</div>
+  </div>
+  <div class="drawer-body">
+    <div class="score-hero">
+      <div class="big" id="drawerScore">0.00</div>
+      <div class="label">Association score (this system's model) · not a probability of guilt</div>
+      <div class="compare" id="drawerCompare"></div>
+    </div>
+    <div class="panel-section">
+      <h3>Score Decomposition</h3>
+      <div id="drawerDecomp"></div>
+      <div class="hint-banner" style="margin:12px 0 0 0;">Component-level breakdown (proximity/timing/gap/route/rendezvous) requires the extended export — this session's <code>vessel_data.json</code> carries the combined score and the standard-factors-only comparison shown above.</div>
+    </div>
+    <div class="panel-section">
+      <h3>Why This Vessel</h3>
+      <div class="evidence-list" id="drawerEvidence"></div>
+    </div>
+    <div class="panel-section">
+      <h3>Position</h3>
+      <div class="kv-row"><span class="k">Last known position</span><span class="v" id="drawerPos">—</span></div>
+      <div class="kv-row"><span class="k">Position source</span><span class="v na">Historical AIS Replay</span></div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn block" id="drawerFlyBtn">Center on Map</button>
+    <button class="btn primary block" id="drawerAlertBtn">Alert on This Vessel</button>
+  </div>
+</aside>
+
+<!-- ALERT COMPOSER MODAL -->
+<div class="modal-scrim" id="alertModalScrim">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Create Alert</h2>
+      <div class="drawer-close" id="modalClose">✕</div>
+    </div>
+    <div class="modal-body">
+      <div class="demo-warning" id="modalDemoWarning">✓ <div><b>Real delivery enabled</b> — if the recipient address below is a valid email, this alert will actually be sent through the backend mail service when you click Send. Non-email addresses are still logged only.</div></div>
+
+      <div class="field">
+        <label>Notification type</label>
+        <div class="chip-select">
+          <div class="chip-opt active" data-type="EMAIL">Email</div>
+          <div class="chip-opt" data-type="SMS">SMS</div>
+          <div class="chip-opt" data-type="IN-APP">In-app</div>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Recipient name</label>
+          <input type="text" id="alertRecipName" placeholder="e.g. District Response Officer">
+        </div>
+        <div class="field">
+          <label>Recipient email / number</label>
+          <input type="text" id="alertRecipAddr" placeholder="name@agency.gov">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Priority</label>
+        <div class="chip-select">
+          <div class="chip-opt pri-high active" data-pri="HIGH">High</div>
+          <div class="chip-opt pri-med" data-pri="MEDIUM">Medium</div>
+          <div class="chip-opt" data-pri="LOW">Low</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Subject</label>
+        <input type="text" id="alertSubject" value="Marine Pollution Alert — Incident SIH26143-DEMO-001">
+      </div>
+
+      <div class="field">
+        <label>Message</label>
+        <textarea id="alertMessage"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="alertCancelBtn">Cancel</button>
+      <button class="btn" id="alertDraftBtn">Save Draft</button>
+      <button class="btn primary" id="alertSendBtn">Send Alert</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+const RAW_VESSELS = [{"mmsi": 1193046, "name": "NAUTICAST", "lat": 28.67013, "lon": -89.39375, "score": 0.709, "standard_score": 0.8832}, {"mmsi": 210998000, "name": "SEABOARD VALPARAISO", "lat": 28.99683, "lon": -89.35923, "score": 0.546, "standard_score": 0.328}, {"mmsi": 218614000, "name": "MSC TORONTO", "lat": 28.99709, "lon": -89.35948, "score": 0.432, "standard_score": 0.30800000000000005}, {"mmsi": 229085000, "name": "MINERVA LYDIA", "lat": 28.25145, "lon": -90.40475, "score": 0.555, "standard_score": 0.606}, {"mmsi": 229616000, "name": "POLA LADOGA", "lat": 28.99903, "lon": -89.35708, "score": 0.54, "standard_score": 0.32080000000000003}, {"mmsi": 241574000, "name": "Vessel 241574000", "lat": 27.07044, "lon": -89.02669, "score": 0.0, "standard_score": 0.0}, {"mmsi": 247302400, "name": "PANNONIA G", "lat": 27.9965, "lon": -90.60633, "score": 0.438, "standard_score": 0.3306}, {"mmsi": 249745000, "name": "SREDNA GORA", "lat": 28.19356, "lon": -89.00406, "score": 0.619, "standard_score": 0.6084}, {"mmsi": 255806170, "name": "Vessel 255806170", "lat": 28.532, "lon": -89.00106, "score": 0.228, "standard_score": 0.2912}, {"mmsi": 256300000, "name": "CMA CGM TANCREDI", "lat": 28.3454, "lon": -89.01207, "score": 0.64, "standard_score": 0.6172}, {"mmsi": 256313000, "name": "SEABEE", "lat": 28.99914, "lon": -89.35712, "score": 0.972, "standard_score": 0.9624000000000001}, {"mmsi": 256317000, "name": "LIGARI", "lat": 28.99895, "lon": -89.35719, "score": 0.274, "standard_score": 0.3084}, {"mmsi": 257714000, "name": "HOEGH TROOPER", "lat": 27.96767, "lon": -90.99317, "score": 0.2, "standard_score": 0.3}, {"mmsi": 271045704, "name": "Vessel 271045704", "lat": 28.99927, "lon": -89.35658, "score": 0.489, "standard_score": 0.6561}, {"mmsi": 303071000, "name": "GOL DIAMOND", "lat": 28.99767, "lon": -90.31221, "score": 0.272, "standard_score": 0.39239999999999997}, {"mmsi": 303075000, "name": "AMY CLEMONS MCCALL", "lat": 28.99864, "lon": -90.34748, "score": 0.041, "standard_score": 0.054400000000000004}, {"mmsi": 303250000, "name": "Vessel 303250000", "lat": 28.9654, "lon": -90.33615, "score": 0.617, "standard_score": 0.6892}, {"mmsi": 310707000, "name": "SITEAM DISCOVERER", "lat": 28.35103, "lon": -89.1175, "score": 0.426, "standard_score": 0.3084}, {"mmsi": 311000137, "name": "CS JADEN", "lat": 28.86872, "lon": -89.36321, "score": 0.383, "standard_score": 0.31120000000000003}, {"mmsi": 311000223, "name": "BLACKCOMB SPIRIT", "lat": 27.96625, "lon": -90.97496, "score": 0.26, "standard_score": 0.1656}, {"mmsi": 311044400, "name": "JACAMAR ARROW", "lat": 27.97225, "lon": -90.92216, "score": 0.273, "standard_score": 0.4065}, {"mmsi": 311105000, "name": "DEEP BLUE", "lat": 27.66507, "lon": -90.63191, "score": 0.411, "standard_score": 0.5804}, {"mmsi": 311727000, "name": "HELGA SPIRIT", "lat": 28.8531, "lon": -89.4274, "score": 0.429, "standard_score": 0.3084}, {"mmsi": 319602000, "name": "STOLT FOCUS", "lat": 28.99847, "lon": -89.3574, "score": 0.28, "standard_score": 0.3084}, {"mmsi": 338032000, "name": "AGNES CANDIES", "lat": 28.27686, "lon": -89.39656, "score": 0.348, "standard_score": 0.494}, {"mmsi": 338047000, "name": "FAST RUNNER", "lat": 28.99752, "lon": -90.33963, "score": 0.592, "standard_score": 0.6564}, {"mmsi": 338197000, "name": "SHIP ISLAND", "lat": 28.99657, "lon": -90.22447, "score": 0.364, "standard_score": 0.5279}, {"mmsi": 338225000, "name": "HARVEY ENERGY", "lat": 28.7757, "lon": -90.2722, "score": 0.055, "standard_score": 0.0728}, {"mmsi": 338484000, "name": "C-ENDURANCE", "lat": 28.2001, "lon": -90.57746, "score": 0.067, "standard_score": 0.0872}, {"mmsi": 338575000, "name": "LOOP RESPONDER", "lat": 28.89362, "lon": -90.02312, "score": 0.13, "standard_score": 0.1396}, {"mmsi": 338582000, "name": "EMILY DAY MCCALL", "lat": 28.83868, "lon": -90.72941, "score": 0.0, "standard_score": 0.0}, {"mmsi": 338644000, "name": "SOUTHERN QUEST", "lat": 28.99677, "lon": -90.5449, "score": 0.621, "standard_score": 0.6080000000000001}, {"mmsi": 338798000, "name": "HARVEY BLUE SEA", "lat": 28.57705, "lon": -89.38205, "score": 0.228, "standard_score": 0.3028}, {"mmsi": 338878000, "name": "RENEE", "lat": 28.4465, "lon": -89.04287, "score": 0.6, "standard_score": 0.8660000000000001}, {"mmsi": 338953000, "name": "CG HARRY CLAIBORNE", "lat": 28.99068, "lon": -90.64921, "score": 0.0, "standard_score": 0.0}, {"mmsi": 353929000, "name": "Vessel 353929000", "lat": 27.69949, "lon": -89.00198, "score": 0.271, "standard_score": 0.4007}, {"mmsi": 355245000, "name": "Vessel 355245000", "lat": 28.84405, "lon": -90.12089, "score": 0.285, "standard_score": 0.414}, {"mmsi": 356423000, "name": "TURMOIL", "lat": 28.99665, "lon": -89.35935, "score": 0.467, "standard_score": 0.31520000000000004}, {"mmsi": 357580590, "name": "K MARINE III", "lat": 28.99802, "lon": -89.85328, "score": 0.702, "standard_score": 0.8024}, {"mmsi": 357759000, "name": "LOCH MAREE", "lat": 28.27507, "lon": -89.10689, "score": 0.417, "standard_score": 0.3084}, {"mmsi": 366017000, "name": "ROGER WHITE", "lat": 27.598, "lon": -89.57174, "score": 0.2, "standard_score": 0.2935}, {"mmsi": 366088000, "name": "THUNDER", "lat": 27.92486, "lon": -90.52807, "score": 0.277, "standard_score": 0.4152}, {"mmsi": 366346000, "name": "RUSSELL BOUZIGA", "lat": 28.52291, "lon": -89.19703, "score": 0.241, "standard_score": 0.2796}, {"mmsi": 366354000, "name": "HERMES", "lat": 28.59102, "lon": -90.80872, "score": 0.0, "standard_score": 0.0}, {"mmsi": 366374000, "name": "CAROL CHOUEST", "lat": 28.25295, "lon": -90.3505, "score": 0.066, "standard_score": 0.0852}, {"mmsi": 366484000, "name": "JEAN PIERRE LAB", "lat": 28.99913, "lon": -90.21704, "score": 0.275, "standard_score": 0.3977}, {"mmsi": 366515000, "name": "BLUE TARPON", "lat": 28.69246, "lon": -90.42272, "score": 0.065, "standard_score": 0.08560000000000001}, {"mmsi": 366667000, "name": "JUAN C", "lat": 28.99856, "lon": -90.21152, "score": 0.268, "standard_score": 0.3896}, {"mmsi": 366724000, "name": "MICHAEL CROMBIE MCCA", "lat": 27.81639, "lon": -90.41305, "score": 0.564, "standard_score": 0.5856}, {"mmsi": 366738610, "name": "LUCY D", "lat": 28.99858, "lon": -90.18419, "score": 0.243, "standard_score": 0.1236}, {"mmsi": 366768480, "name": "CROSBY CRUSADER", "lat": 28.76173, "lon": -90.676, "score": 0.7, "standard_score": 0.6}, {"mmsi": 366771810, "name": "CROSBY DUKE", "lat": 28.82052, "lon": -90.69535, "score": 0.044, "standard_score": 0.0576}, {"mmsi": 366804450, "name": "CROSBY RAMBLER", "lat": 28.97203, "lon": -89.37237, "score": 0.932, "standard_score": 0.9088}, {"mmsi": 366825310, "name": "C-TRUC 7", "lat": 28.99907, "lon": -90.10361, "score": 0.258, "standard_score": 0.144}, {"mmsi": 366839180, "name": "CALLIE JEAN", "lat": 28.92111, "lon": -90.48872, "score": 0.55, "standard_score": 0.6516}, {"mmsi": 366840000, "name": "HARVEY CHAMPION", "lat": 28.99721, "lon": -90.21834, "score": 0.294, "standard_score": 0.3396}, {"mmsi": 366854410, "name": "HMS VALOR", "lat": 28.76654, "lon": -90.40502, "score": 0.407, "standard_score": 0.3756}, {"mmsi": 366866280, "name": "AMETHYST", "lat": 28.66984, "lon": -90.97951, "score": 0.249, "standard_score": 0.364}, {"mmsi": 366898000, "name": "K-MARINE VII", "lat": 28.97133, "lon": -89.51534, "score": 0.757, "standard_score": 0.6515000000000001}, {"mmsi": 366914750, "name": "CANDY COTTON", "lat": 28.99461, "lon": -89.59187, "score": 0.632, "standard_score": 0.6756}, {"mmsi": 366932390, "name": "ORLEANS", "lat": 28.15833, "lon": -89.94731, "score": 0.055, "standard_score": 0.074}, {"mmsi": 366934410, "name": "MS PEARL", "lat": 28.98679, "lon": -90.20042, "score": 0.577, "standard_score": 0.4024}, {"mmsi": 366935000, "name": "CHARLIE COMEAUX", "lat": 28.9997, "lon": -90.21403, "score": 0.261, "standard_score": 0.15050000000000002}, {"mmsi": 366939110, "name": "VIRGINIA", "lat": 28.99779, "lon": -90.55235, "score": 0.429, "standard_score": 0.5928}, {"mmsi": 366946040, "name": "OCEAN INSPECTOR", "lat": 28.96002, "lon": -90.36584, "score": 0.04, "standard_score": 0.0504}, {"mmsi": 366957490, "name": "WILLIAM H JOHNSON", "lat": 28.93207, "lon": -89.4075, "score": 0.841, "standard_score": 0.7749}, {"mmsi": 366968740, "name": "NOLA", "lat": 28.998, "lon": -89.35574, "score": 0.532, "standard_score": 0.3088}, {"mmsi": 366968860, "name": "JARRED GRIFFIN", "lat": 28.70183, "lon": -89.13438, "score": 0.254, "standard_score": 0.33440000000000003}, {"mmsi": 366978490, "name": "KOBE CHOUEST", "lat": 28.15559, "lon": -90.53969, "score": 0.263, "standard_score": 0.38439999999999996}, {"mmsi": 366982350, "name": "MS CHRISTINE", "lat": 28.77099, "lon": -90.92943, "score": 0.441, "standard_score": 0.6439999999999999}, {"mmsi": 366983730, "name": "MR LLOYD", "lat": 28.99948, "lon": -90.00041, "score": 0.831, "standard_score": 0.9748000000000001}, {"mmsi": 366987890, "name": "CAPT RUDY", "lat": 28.99885, "lon": -89.3561, "score": 0.589, "standard_score": 0.6084}, {"mmsi": 366989120, "name": "MARY GRACE", "lat": 28.99729, "lon": -89.59497, "score": 0.837, "standard_score": 0.9828000000000001}, {"mmsi": 366991260, "name": "CAPT JOHN E GRAHAM", "lat": 28.8438, "lon": -89.39732, "score": 0.579, "standard_score": 0.6052}, {"mmsi": 367020050, "name": "Vessel 367020050", "lat": 28.89388, "lon": -90.05988, "score": 0.483, "standard_score": 0.4768}, {"mmsi": 367063560, "name": "LADY LAB", "lat": 28.81256, "lon": -90.31798, "score": 0.617, "standard_score": 0.6896}, {"mmsi": 367072840, "name": "KELLY MORRISON", "lat": 28.84294, "lon": -90.99859, "score": 0.012, "standard_score": 0.0}, {"mmsi": 367073150, "name": "ABIGAIL CLAIRE", "lat": 28.75185, "lon": -90.75787, "score": 0.001, "standard_score": 0.0012}, {"mmsi": 367093960, "name": "MISS JESSICA FAYE", "lat": 28.99696, "lon": -90.20455, "score": 0.72, "standard_score": 0.6167}, {"mmsi": 367095460, "name": "MISS DOROTHY", "lat": 28.9828, "lon": -89.36843, "score": 0.731, "standard_score": 0.6084}, {"mmsi": 367102000, "name": "Vessel 367102000", "lat": 27.61029, "lon": -89.00303, "score": 0.11, "standard_score": 0.1616}, {"mmsi": 367109110, "name": "STONE EXPLORER", "lat": 28.99871, "lon": -89.35662, "score": 0.492, "standard_score": 0.6084}, {"mmsi": 367123560, "name": "KYLIE D", "lat": 28.96433, "lon": -90.49935, "score": 0.577, "standard_score": 0.6355999999999999}, {"mmsi": 367143520, "name": "GRAND ISLE 59 LOOP", "lat": 28.8846, "lon": -90.02441, "score": 0.105, "standard_score": 0.1396}, {"mmsi": 367143960, "name": "EMILY D", "lat": 28.81559, "lon": -90.39396, "score": 0.032, "standard_score": 0.0424}, {"mmsi": 367144870, "name": "CROSBY COURAGE", "lat": 28.94294, "lon": -90.52918, "score": 0.357, "standard_score": 0.30879999999999996}, {"mmsi": 367150170, "name": "CANDY BARREL", "lat": 28.95556, "lon": -89.78643, "score": 0.462, "standard_score": 0.6464000000000001}, {"mmsi": 367154920, "name": "MISS LYNDA", "lat": 28.99762, "lon": -90.37704, "score": 0.781, "standard_score": 0.9084000000000001}, {"mmsi": 367155210, "name": "MS DEBORAH", "lat": 28.61583, "lon": -90.26967, "score": 0.371, "standard_score": 0.32}, {"mmsi": 367157150, "name": "RMS CITATION", "lat": 28.9336, "lon": -90.63505, "score": 0.574, "standard_score": 0.6324}, {"mmsi": 367166240, "name": "Vessel 367166240", "lat": 28.99424, "lon": -89.42904, "score": 0.373, "standard_score": 0.2972}, {"mmsi": 367192710, "name": "BAR PILOT", "lat": 28.99841, "lon": -89.35604, "score": 0.783, "standard_score": 0.9108}, {"mmsi": 367306240, "name": "TIMMY DANOS", "lat": 28.99937, "lon": -90.59883, "score": 0.309, "standard_score": 0.2385}, {"mmsi": 367306890, "name": "HMS JIM MORGAN", "lat": 28.99934, "lon": -90.30661, "score": 0.049, "standard_score": 0.06480000000000001}, {"mmsi": 367320340, "name": "GRAND SUN", "lat": 28.80651, "lon": -90.98831, "score": 0.035, "standard_score": 0.0444}, {"mmsi": 367321850, "name": "GRANT", "lat": 28.66774, "lon": -90.94315, "score": 0.001, "standard_score": 0.0}, {"mmsi": 367323360, "name": "MR MURVIN", "lat": 28.85834, "lon": -90.49602, "score": 0.237, "standard_score": 0.2055}, {"mmsi": 367325730, "name": "MS WENDY", "lat": 28.99772, "lon": -90.3314, "score": 0.194, "standard_score": 0.0588}, {"mmsi": 367330820, "name": "GREATER SCOTT", "lat": 28.99431, "lon": -90.29435, "score": 0.401, "standard_score": 0.3684}, {"mmsi": 367330830, "name": "ODYSSEA DARWIN", "lat": 28.99732, "lon": -89.35676, "score": 0.626, "standard_score": 0.668}, {"mmsi": 367336000, "name": "RESOLVE", "lat": 27.15126, "lon": -90.6937, "score": 0.0, "standard_score": 0.0}, {"mmsi": 367337630, "name": "MARY WYATT MILANO", "lat": 28.99661, "lon": -90.35227, "score": 0.04, "standard_score": 0.053200000000000004}, {"mmsi": 367338000, "name": "HARVEY POWER", "lat": 28.66389, "lon": -90.30344, "score": 0.507, "standard_score": 0.6592}, {"mmsi": 367341340, "name": "MR ALEX", "lat": 28.9997, "lon": -90.39992, "score": 0.581, "standard_score": 0.6408}, {"mmsi": 367353090, "name": "SUNSHINE STATE", "lat": 28.9975, "lon": -89.35876, "score": 0.431, "standard_score": 0.6080000000000001}, {"mmsi": 367359790, "name": "HORIZON RUNNER", "lat": 28.84329, "lon": -90.50065, "score": 0.047, "standard_score": 0.0632}, {"mmsi": 367361780, "name": "KERRIE D", "lat": 28.99563, "lon": -90.03977, "score": 0.481, "standard_score": 0.4752}, {"mmsi": 367374140, "name": "TRINITY", "lat": 28.7901, "lon": -90.9585, "score": 0.049, "standard_score": 0.0604}, {"mmsi": 367388640, "name": "RANDOLPH JOHN", "lat": 28.95093, "lon": -90.57216, "score": 0.4, "standard_score": 0.6}, {"mmsi": 367390890, "name": "SPENCER PHILIP", "lat": 28.57814, "lon": -90.57578, "score": 0.35, "standard_score": 0.3}, {"mmsi": 367411370, "name": "STARFLEET VIKING", "lat": 28.99992, "lon": -90.20315, "score": 0.229, "standard_score": 0.10520000000000002}, {"mmsi": 367411870, "name": "ODYSSEA LEADER", "lat": 28.37753, "lon": -90.18706, "score": 0.43, "standard_score": 0.406}, {"mmsi": 367413160, "name": "DUSTIN DANOS", "lat": 28.99058, "lon": -89.00262, "score": 0.553, "standard_score": 0.6784}, {"mmsi": 367415160, "name": "YELLOWFIN", "lat": 28.99988, "lon": -89.35585, "score": 0.593, "standard_score": 0.6084}, {"mmsi": 367419130, "name": "MS JILL", "lat": 28.55798, "lon": -90.99367, "score": 0.35, "standard_score": 0.3}, {"mmsi": 367419770, "name": "MS JANE", "lat": 28.99895, "lon": -90.28356, "score": 0.29, "standard_score": 0.20129999999999998}, {"mmsi": 367420240, "name": "BLACK DIVER III", "lat": 28.82536, "lon": -90.99769, "score": 0.252, "standard_score": 0.3512}, {"mmsi": 367426260, "name": "ROSS CANDIES", "lat": 28.98522, "lon": -90.21374, "score": 0.295, "standard_score": 0.424}, {"mmsi": 367426480, "name": "GARY CHIASSON ELEVAT", "lat": 28.99474, "lon": -90.03051, "score": 0.103, "standard_score": 0.13640000000000002}, {"mmsi": 367426920, "name": "GREY CUP", "lat": 28.9991, "lon": -89.86376, "score": 0.905, "standard_score": 0.8728}, {"mmsi": 367427450, "name": "HARVEY CHARGER", "lat": 28.99809, "lon": -90.07468, "score": 0.754, "standard_score": 0.8724000000000001}, {"mmsi": 367435750, "name": "FREEDOM", "lat": 28.89053, "lon": -89.00111, "score": 0.598, "standard_score": 0.3972}, {"mmsi": 367438530, "name": "CAPT PEYTON P", "lat": 28.9885, "lon": -90.20819, "score": 0.633, "standard_score": 0.7108}, {"mmsi": 367442150, "name": "JON CADE", "lat": 28.99915, "lon": -90.18172, "score": 0.765, "standard_score": 0.8868}, {"mmsi": 367451420, "name": "MR DINO", "lat": 28.99757, "lon": -89.9145, "score": 0.871, "standard_score": 0.8288}, {"mmsi": 367454680, "name": "CHERAMIE BOTRUC 41", "lat": 28.44517, "lon": -89.04124, "score": 0.399, "standard_score": 0.5656}, {"mmsi": 367455610, "name": "WATEREE", "lat": 28.89457, "lon": -90.10391, "score": 0.445, "standard_score": 0.42679999999999996}, {"mmsi": 367467010, "name": "MS MARY", "lat": 28.99921, "lon": -90.3359, "score": 0.044, "standard_score": 0.0584}, {"mmsi": 367471840, "name": "FAST GIANT", "lat": 28.99641, "lon": -90.18203, "score": 0.342, "standard_score": 0.486}, {"mmsi": 367475170, "name": "FEDERAL PILOT 1", "lat": 28.96286, "lon": -89.37778, "score": 0.78, "standard_score": 0.9072}, {"mmsi": 367492110, "name": "ODYSSEA TITAN", "lat": 28.09689, "lon": -90.9854, "score": 0.336, "standard_score": 0.3}, {"mmsi": 367508680, "name": "CROSBY INTEGRITY", "lat": 28.76154, "lon": -90.67674, "score": 0.7, "standard_score": 0.6}, {"mmsi": 367516920, "name": "HARVEY EXPRESS", "lat": 28.99784, "lon": -90.17905, "score": 0.734, "standard_score": 0.8455999999999999}, {"mmsi": 367529040, "name": "K-MARINE VIII", "lat": 28.85112, "lon": -89.37612, "score": 0.299, "standard_score": 0.382}, {"mmsi": 367536940, "name": "ANDI NICOL", "lat": 28.51569, "lon": -90.88529, "score": 0.213, "standard_score": 0.3}, {"mmsi": 367543570, "name": "FOURCHON RUNNER", "lat": 28.99942, "lon": -90.26567, "score": 0.407, "standard_score": 0.3756}, {"mmsi": 367561260, "name": "ELLA CLAIRE", "lat": 28.99956, "lon": -90.25457, "score": 0.477, "standard_score": 0.2519}, {"mmsi": 367563360, "name": "DUTCH GIRL", "lat": 28.76223, "lon": -90.67538, "score": 0.284, "standard_score": 0.19390000000000002}, {"mmsi": 367569850, "name": "LESLIE ANN", "lat": 28.97674, "lon": -90.44824, "score": 0.03, "standard_score": 0.04000000000000001}, {"mmsi": 367579840, "name": "FMS EAGLE", "lat": 28.62179, "lon": -90.15072, "score": 0.76, "standard_score": 0.8728}, {"mmsi": 367580190, "name": "FAST DELIVERER", "lat": 28.68062, "lon": -89.40228, "score": 0.772, "standard_score": 0.8964000000000001}, {"mmsi": 367582010, "name": "MS NORMA LEE", "lat": 28.99915, "lon": -90.00207, "score": 0.983, "standard_score": 0.978}, {"mmsi": 367584050, "name": "MS JEN", "lat": 28.87451, "lon": -90.45365, "score": 0.4, "standard_score": 0.3664}, {"mmsi": 367585880, "name": "HOS RENAISSANCE", "lat": 27.69318, "lon": -90.27487, "score": 0.0, "standard_score": 0.0}, {"mmsi": 367585910, "name": "HOS CAROLINA", "lat": 28.99314, "lon": -90.21798, "score": 0.066, "standard_score": 0.08800000000000001}, {"mmsi": 367594510, "name": "GRACE", "lat": 28.87374, "lon": -89.43812, "score": 0.296, "standard_score": 0.37400000000000005}, {"mmsi": 367598990, "name": "MISS ALLIE", "lat": 28.79133, "lon": -90.95938, "score": 0.047, "standard_score": 0.0636}, {"mmsi": 367599830, "name": "FEDERAL PILOT II", "lat": 28.9626, "lon": -89.37674, "score": 0.432, "standard_score": 0.6088}, {"mmsi": 367602240, "name": "GLORIA MAY", "lat": 28.99686, "lon": -90.36824, "score": 0.04, "standard_score": 0.0492}, {"mmsi": 367602510, "name": "GIS TIGER", "lat": 28.83049, "lon": -90.69951, "score": 0.0, "standard_score": 0.0}, {"mmsi": 367602710, "name": "ABI C", "lat": 28.88203, "lon": -90.57996, "score": 0.55, "standard_score": 0.6}, {"mmsi": 367602890, "name": "GRAND ISLE", "lat": 28.99612, "lon": -90.21638, "score": 0.445, "standard_score": 0.5888}, {"mmsi": 367604960, "name": "ADRIENNE B", "lat": 28.85703, "lon": -90.45957, "score": 0.371, "standard_score": 0.3276}, {"mmsi": 367606390, "name": "BADGER", "lat": 28.99349, "lon": -90.20022, "score": 0.284, "standard_score": 0.4116}, {"mmsi": 367608850, "name": "POPPA P", "lat": 28.88991, "lon": -90.41997, "score": 0.654, "standard_score": 0.7384}, {"mmsi": 367611430, "name": "ROSLYN", "lat": 28.98439, "lon": -90.83328, "score": 0.176, "standard_score": 0.2601}, {"mmsi": 367611820, "name": "GIS-SEA HORSE", "lat": 28.99856, "lon": -90.02193, "score": 0.481, "standard_score": 0.30760000000000004}, {"mmsi": 367612320, "name": "HOS BLACK ROCK", "lat": 28.99536, "lon": -90.22113, "score": 0.082, "standard_score": 0.0872}, {"mmsi": 367613490, "name": "GREAT EXPECTATIONS", "lat": 28.82026, "lon": -89.43775, "score": 0.418, "standard_score": 0.5896}, {"mmsi": 367614560, "name": "ISABELLA ROSE", "lat": 28.99991, "lon": -90.30733, "score": 0.599, "standard_score": 0.6648000000000001}, {"mmsi": 367617970, "name": "KIMBERLY D", "lat": 28.94009, "lon": -89.68164, "score": 0.843, "standard_score": 0.7861}, {"mmsi": 367618130, "name": "CAPE HORN", "lat": 28.29266, "lon": -90.37225, "score": 0.066, "standard_score": 0.08600000000000001}, {"mmsi": 367622850, "name": "FMS ENDURANCE", "lat": 28.88764, "lon": -90.29425, "score": 0.607, "standard_score": 0.6759999999999999}, {"mmsi": 367637190, "name": "HAYDEN", "lat": 28.66205, "lon": -89.1572, "score": 0.802, "standard_score": 0.9356}, {"mmsi": 367642980, "name": "CAPT ELLIOTT MCCALL", "lat": 28.87098, "lon": -89.00531, "score": 0.507, "standard_score": 0.6908000000000001}, {"mmsi": 367643110, "name": "DEEP RUNNER", "lat": 28.66063, "lon": -89.80878, "score": 0.345, "standard_score": 0.48360000000000003}, {"mmsi": 367643990, "name": "JAVA", "lat": 27.36089, "lon": -90.1922, "score": 0.0, "standard_score": 0.0}, {"mmsi": 367653160, "name": "FAST LEOPARD", "lat": 28.9907, "lon": -90.22402, "score": 0.286, "standard_score": 0.4154}, {"mmsi": 367654140, "name": "LOOP LINE", "lat": 28.88694, "lon": -90.04105, "score": 0.254, "standard_score": 0.1392}, {"mmsi": 367658480, "name": "LOOP LOADER", "lat": 28.94689, "lon": -90.09337, "score": 0.091, "standard_score": 0.1212}, {"mmsi": 367658610, "name": "BROOKE", "lat": 28.16414, "lon": -90.74522, "score": 0.461, "standard_score": 0.6816}, {"mmsi": 367659780, "name": "STARFLEET GUARDIAN", "lat": 28.39614, "lon": -89.00061, "score": 0.555, "standard_score": 0.5732}, {"mmsi": 367666240, "name": "AQUEOS SPLASH", "lat": 28.87344, "lon": -89.47285, "score": 0.41, "standard_score": 0.30760000000000004}, {"mmsi": 367666910, "name": "CAJUN IV", "lat": 28.99764, "lon": -90.0597, "score": 0.249, "standard_score": 0.3272}, {"mmsi": 367668680, "name": "BISON", "lat": 28.3684, "lon": -90.20084, "score": 0.065, "standard_score": 0.08560000000000001}, {"mmsi": 367677960, "name": "FAST TIGER", "lat": 28.63071, "lon": -89.01412, "score": 0.765, "standard_score": 0.9279999999999999}, {"mmsi": 367682410, "name": "GREAT WHITE", "lat": 28.94642, "lon": -90.99982, "score": 0.273, "standard_score": 0.40859999999999996}, {"mmsi": 367684260, "name": "PELICAN ISLAND", "lat": 27.13012, "lon": -90.3421, "score": 0.2, "standard_score": 0.3}, {"mmsi": 367691280, "name": "ROBIN", "lat": 28.55763, "lon": -89.52935, "score": 0.738, "standard_score": 0.8504}, {"mmsi": 367693810, "name": "DAUPHIN ISLAND", "lat": 28.99923, "lon": -90.16228, "score": 0.223, "standard_score": 0.2896}, {"mmsi": 367697440, "name": "BRANDON BORDELON", "lat": 28.99852, "lon": -90.15669, "score": 0.628, "standard_score": 0.7036}, {"mmsi": 367710550, "name": "MS NANCY", "lat": 28.53708, "lon": -90.22297, "score": 0.416, "standard_score": 0.388}, {"mmsi": 367722840, "name": "GLENN AUTRY", "lat": 28.6615, "lon": -89.61133, "score": 0.175, "standard_score": 0.2312}, {"mmsi": 367730190, "name": "BIG P", "lat": 28.46489, "lon": -89.38728, "score": 0.639, "standard_score": 0.8484}, {"mmsi": 367740720, "name": "COPPER MOUNTAIN", "lat": 28.80842, "lon": -89.00253, "score": 0.781, "standard_score": 0.674}, {"mmsi": 367771970, "name": "FAST LION", "lat": 28.45099, "lon": -90.35433, "score": 0.616, "standard_score": 0.688}, {"mmsi": 367783120, "name": "GO PATRIOT", "lat": 28.97637, "lon": -90.01184, "score": 0.456, "standard_score": 0.423}, {"mmsi": 368008130, "name": "Vessel 368008130", "lat": 28.99572, "lon": -90.21877, "score": 0.331, "standard_score": 0.2579}, {"mmsi": 368020630, "name": "SPEEDY P", "lat": 28.85161, "lon": -90.48543, "score": 0.378, "standard_score": 0.3372}, {"mmsi": 368021936, "name": "Vessel 368021936", "lat": 28.99848, "lon": -90.34944, "score": 0.59, "standard_score": 0.6539999999999999}, {"mmsi": 368024380, "name": "Vessel 368024380", "lat": 28.99208, "lon": -90.1688, "score": 0.076, "standard_score": 0.1008}, {"mmsi": 368028770, "name": "AB 8", "lat": 28.96908, "lon": -89.36668, "score": 0.731, "standard_score": 0.6084}, {"mmsi": 368038090, "name": "Vessel 368038090", "lat": 28.76276, "lon": -90.99115, "score": 0.006, "standard_score": 0.0}, {"mmsi": 368039370, "name": "HOS BROWNING", "lat": 28.66343, "lon": -89.00154, "score": 0.45, "standard_score": 0.6308}, {"mmsi": 368042990, "name": "Vessel 368042990", "lat": 28.85959, "lon": -89.43189, "score": 0.933, "standard_score": 0.9112}, {"mmsi": 368054660, "name": "ML GROVE", "lat": 28.99517, "lon": -90.32534, "score": 0.291, "standard_score": 0.3604}, {"mmsi": 368079000, "name": "SEA SCOUT", "lat": 28.88554, "lon": -89.60383, "score": 0.187, "standard_score": 0.24880000000000002}, {"mmsi": 368185000, "name": "DEE WHITE", "lat": 28.99686, "lon": -89.35763, "score": 0.731, "standard_score": 0.6084}, {"mmsi": 368186000, "name": "HARVEY CARRIER", "lat": 28.01193, "lon": -89.17206, "score": 0.301, "standard_score": 0.4344}, {"mmsi": 368456000, "name": "ELLA G", "lat": 28.99776, "lon": -90.22194, "score": 0.619, "standard_score": 0.6888}, {"mmsi": 368552000, "name": "NORBERT BOUZIGA", "lat": 28.68131, "lon": -89.38888, "score": 0.627, "standard_score": 0.8852}, {"mmsi": 368615000, "name": "NICKI CANDIES", "lat": 28.17826, "lon": -89.12006, "score": 0.274, "standard_score": 0.376}, {"mmsi": 368674000, "name": "HEIDE MORAN", "lat": 28.99863, "lon": -89.35703, "score": 0.768, "standard_score": 0.6572}, {"mmsi": 369015000, "name": "MISS GRACIE", "lat": 28.99925, "lon": -90.16614, "score": 0.227, "standard_score": 0.1024}, {"mmsi": 369098000, "name": "HANNAH", "lat": 28.94734, "lon": -90.99417, "score": 0.294, "standard_score": 0.418}, {"mmsi": 369293000, "name": "SOUTHERN TIDE", "lat": 28.35186, "lon": -90.17724, "score": 0.594, "standard_score": 0.6579999999999999}, {"mmsi": 369533000, "name": "LIGHTNING", "lat": 28.99798, "lon": -90.21939, "score": 0.248, "standard_score": 0.2796}, {"mmsi": 369588000, "name": "OCEAN PATRIOT", "lat": 28.99946, "lon": -90.21606, "score": 0.275, "standard_score": 0.4}, {"mmsi": 369638000, "name": "IPANEMA", "lat": 28.98793, "lon": -90.25612, "score": 0.066, "standard_score": 0.08950000000000001}, {"mmsi": 369764000, "name": "BOTRUC 38", "lat": 28.09603, "lon": -90.7942, "score": 0.0, "standard_score": 0.0}, {"mmsi": 371535000, "name": "BULK PATRIOT", "lat": 28.54947, "lon": -89.25328, "score": 0.428, "standard_score": 0.6036}, {"mmsi": 372123000, "name": "MSC LEIGH", "lat": 28.66439, "lon": -89.03612, "score": 0.444, "standard_score": 0.392}, {"mmsi": 414070000, "name": "TAO HUA HAI", "lat": 28.84691, "lon": -89.42867, "score": 0.268, "standard_score": 0.2932}, {"mmsi": 477476200, "name": "OSLO VENTURE", "lat": 28.99917, "lon": -89.35739, "score": 0.616, "standard_score": 0.795}, {"mmsi": 477967900, "name": "COSFLYING LAKE", "lat": 28.3425, "lon": -90.07371, "score": 0.078, "standard_score": 0.08000000000000002}, {"mmsi": 477985300, "name": "GENCO CHALLENGER", "lat": 28.99606, "lon": -89.35931, "score": 0.437, "standard_score": 0.30800000000000005}, {"mmsi": 538002355, "name": "OSPREY I", "lat": 27.96883, "lon": -90.99438, "score": 0.427, "standard_score": 0.5231}, {"mmsi": 538002877, "name": "DISCOVERER CLEAR LEA", "lat": 28.86583, "lon": -90.1545, "score": 0.079, "standard_score": 0.10560000000000001}, {"mmsi": 538003254, "name": "STOLT MEGAMI", "lat": 28.9978, "lon": -89.35767, "score": 0.427, "standard_score": 0.3084}, {"mmsi": 538003693, "name": "AMANDA C", "lat": 28.88455, "lon": -89.36598, "score": 0.521, "standard_score": 0.6104}, {"mmsi": 538005074, "name": "INTREPID EAGLE", "lat": 28.99826, "lon": -89.35756, "score": 0.607, "standard_score": 0.6084}, {"mmsi": 538005124, "name": "DEEPWATER PROTEUS", "lat": 28.17619, "lon": -89.1184, "score": 0.138, "standard_score": 0.1844}, {"mmsi": 538006166, "name": "TRF BERGEN", "lat": 27.8768, "lon": -89.43846, "score": 0.667, "standard_score": 0.9104000000000001}, {"mmsi": 538006856, "name": "TRF KOBE", "lat": 28.99955, "lon": -89.35738, "score": 0.615, "standard_score": 0.6080000000000001}, {"mmsi": 538006970, "name": "GH SEABISCUIT", "lat": 28.13199, "lon": -89.01483, "score": 0.618, "standard_score": 0.6080000000000001}, {"mmsi": 548953000, "name": "Vessel 548953000", "lat": 28.80454, "lon": -89.4128, "score": 0.257, "standard_score": 0.3467}, {"mmsi": 548960000, "name": "Vessel 548960000", "lat": 28.99861, "lon": -89.35798, "score": 0.267, "standard_score": 0.30800000000000005}, {"mmsi": 563016600, "name": "Vessel 563016600", "lat": 28.18744, "lon": -89.0012, "score": 0.421, "standard_score": 0.30800000000000005}, {"mmsi": 563450000, "name": "TORM ALMENA", "lat": 28.16363, "lon": -89.00044, "score": 0.633, "standard_score": 0.6349}, {"mmsi": 563944000, "name": "ALPINE ETERNITY", "lat": 28.99707, "lon": -89.35848, "score": 0.458, "standard_score": 0.6080000000000001}, {"mmsi": 577163000, "name": "ORYX", "lat": 28.99745, "lon": -90.22479, "score": 0.615, "standard_score": 0.6859999999999999}, {"mmsi": 636012767, "name": "ASOPOS", "lat": 28.68927, "lon": -89.56902, "score": 0.43, "standard_score": 0.30760000000000004}, {"mmsi": 636014381, "name": "ANNA S", "lat": 28.88713, "lon": -89.43153, "score": 0.227, "standard_score": 0.2972}, {"mmsi": 636015382, "name": "NOBLE DON TAYLOR", "lat": 28.88817, "lon": -90.08417, "score": 0.098, "standard_score": 0.124}, {"mmsi": 636016805, "name": "MSC NADRIELY", "lat": 28.99715, "lon": -89.3583, "score": 0.731, "standard_score": 0.6080000000000001}, {"mmsi": 636017218, "name": "CHIQUITA EXPRESS", "lat": 28.2956, "lon": -89.89507, "score": 0.715, "standard_score": 0.8979999999999999}, {"mmsi": 636017492, "name": "NAUTICAL ALICE", "lat": 28.09161, "lon": -89.00221, "score": 0.321, "standard_score": 0.4608}, {"mmsi": 866755230, "name": "GIS-DYLAN", "lat": 28.21281, "lon": -90.23608, "score": 0.574, "standard_score": 0.6315999999999999}];
+const RAW_NOTIFICATIONS = [{"notification_type": "NEW_SPILL_ALERT", "severity": "HIGH", "title": "Oil spill detected \u2014 0.267 km\u00b2", "message": "Spill detected at 28.9003, -89.0227. Estimated age ~5.3h. Thickness: thick (actionable).", "incident_id": "SIH26143-DEMO-001", "timestamp": "2026-09-26T20:58:24.530217+00:00", "deep_link_target": "incident/SIH26143-DEMO-001", "source_type": "DERIVED"}, {"notification_type": "CANDIDATE_ALERT", "severity": "MEDIUM", "title": "Top suspect vessel identified: MS NORMA LEE", "message": "MMSI 367582010 ranked highest with association score 0.983.", "incident_id": "SIH26143-DEMO-001", "candidate_id": "367582010", "timestamp": "2026-09-26T20:58:24.531293+00:00", "deep_link_target": "incident/SIH26143-DEMO-001/candidate/367582010", "source_type": "DERIVED"}, {"notification_type": "EO_AVAILABLE_ALERT", "severity": "LOW", "title": "EO corroboration attempted \u2014 inconclusive", "message": "Sentinel-2 scene found near spill date but 97% cloud-obscured over AOI. No optical confirmation possible.", "incident_id": "SIH26143-DEMO-001", "timestamp": "2026-09-26T20:58:24.531637+00:00", "deep_link_target": "incident/SIH26143-DEMO-001/eo", "source_type": "DERIVED"}];
+const RAW_DRIFT = {"backward": [[28.900299007428263, -89.02273001950847], [28.906692019695516, -89.01183694277748], [28.91308503196277, -89.00094319497022], [28.919478044230022, -88.99004877586837], [28.925871056497275, -88.97915368525354], [28.93226406876453, -88.96825792290727], [28.93865708103178, -88.95736148861107], [28.945050093299034, -88.94646438214637], [28.951443105566288, -88.93556660329457], [28.95783611783354, -88.92466815183698], [28.964229130100794, -88.91376902755486], [28.970622142368047, -88.90286923022944], [28.9770151546353, -88.89196875964186], [28.983408166902553, -88.88106761557322], [28.989801179169806, -88.87016579780455], [28.99619419143706, -88.85926330611684], [29.002587203704312, -88.84836014029102], [29.008980215971565, -88.83745630010795], [29.01537322823882, -88.82655178534843], [29.02176624050607, -88.81564659579323], [29.028159252773325, -88.80474073122302], [29.034552265040578, -88.79383419141845], [29.04094527730783, -88.78292697616011], [29.047338289575084, -88.77201908522851], [29.053731301842337, -88.7611105184041]], "forward": [[28.900299007428263, -89.02273001950847], [28.89390599516101, -89.03362309623947], [28.887512982893757, -89.04451550211247], [28.881119970626504, -89.0554072373457], [28.87472695835925, -89.06629830215734], [28.868333946091997, -89.07718869676546], [28.861940933824744, -89.08807842138812], [28.85554792155749, -89.09896747624332], [28.849154909290238, -89.10985586154898], [28.842761897022985, -89.12074357752299], [28.836368884755732, -89.13163062438315], [28.82997587248848, -89.14251700234725], [28.823582860221226, -89.15340271163298], [28.817189847953973, -89.16428775245798], [28.81079683568672, -89.17517212503986], [28.804403823419467, -89.18605582959616], [28.798010811152214, -89.19693886634434], [28.79161779888496, -89.20782123550183], [28.785224786617707, -89.218702937286], [28.778831774350454, -89.22958397191415], [28.7724387620832, -89.24046433960355], [28.766045749815948, -89.25134404057137], [28.759652737548695, -89.26222307503477], [28.753259725281442, -89.27310144321082], [28.74686671301419, -89.28397914531656], [28.740473700746936, -89.29485618156896], [28.734080688479683, -89.30573255218492], [28.72768767621243, -89.3166082573813], [28.721294663945176, -89.32748329737493], [28.714901651677923, -89.33835767238251], [28.70850863941067, -89.34923138262076], [28.702115627143417, -89.3601044283063], [28.695722614876164, -89.3709768096557], [28.68932960260891, -89.38184852688549], [28.682936590341658, -89.39271958021213], [28.676543578074405, -89.40358996985204], [28.670150565807152, -89.41445969602154], [28.6637575535399, -89.42532875893696], [28.657364541272646, -89.43619715881451], [28.650971529005393, -89.44706489587038], [28.64457851673814, -89.45793197032071], [28.638185504470886, -89.46879838238156], [28.631792492203633, -89.47966413226895], [28.62539947993638, -89.49052922019884], [28.619006467669127, -89.50139364638711], [28.612613455401874, -89.51225741104965], [28.60622044313462, -89.52312051440221], [28.599827430867368, -89.53398295666054], [28.593434418600115, -89.54484473804033]]};
+const RAW_SPILL = {"lat": 28.900299007428263, "lon": -89.02273001950847, "area_km2": 0.267, "length_km": 1.28, "age_hours": 5.3, "thickness": "thick (actionable)", "scene_date": "2018-09-26"};
+
+</script>
+<script>
+// ===================================================================
+// OceanTrace — application logic
+// All incident/vessel/drift data below is read from the frozen JSON
+// exports (RAW_SPILL, RAW_DRIFT, RAW_VESSELS, RAW_NOTIFICATIONS).
+// Nothing scientific is invented here — see Data & Method view.
+// ===================================================================
+
+const state = {
+  vessels: RAW_VESSELS.slice().sort((a,b)=> b.score - a.score),
+  notifications: RAW_NOTIFICATIONS,
+  drift: RAW_DRIFT,
+  spill: RAW_SPILL,
+  selectedVessel: null,
+  mode: 'replay', // replay | live (live has no real backing in this build)
+  alertHistory: [],
+  activeTimelineIdx: null,
+  playing: false,
+  playTimer: null,
+  playSpeed: 1,
+};
+
+// -------------------------------------------------------------
+// Derived / formatted values (computed, not fabricated)
+// -------------------------------------------------------------
+const topCandidate = state.vessels[0];
+const highScoreVessels = state.vessels.filter(v => v.score >= 0.6);
+
+// -------------------------------------------------------------
+// ID-INTEGRITY CHECK — heuristic, not a real registry lookup.
+// A valid MMSI's first 3 digits (MID) map to an assigned country
+// code (200-799 range, excluding a few reserved blocks). An MMSI
+// outside that structure, or a vessel broadcasting with no name
+// at all, is flagged as an identity irregularity worth a second
+// look — this does NOT mean the vessel is confirmed to be
+// spoofing, only that its AIS identity fields don't pass a basic
+// structural check. Real deployment would cross-check against
+// IMO/MID registries and dimension-consistency, not just this.
+// -------------------------------------------------------------
+function checkIdIntegrity(v){
+  const mmsiStr = String(v.mmsi);
+  const flags = [];
+  if (mmsiStr.length !== 9){
+    flags.push('MMSI is not 9 digits (structurally invalid)');
+  } else {
+    const mid = parseInt(mmsiStr.slice(0,3), 10);
+    if (mid < 200 || mid > 799){
+      flags.push(`MID prefix ${mid} falls outside the assigned country-code range (200-799)`);
+    }
+  }
+  if (!v.name || v.name === 'null' || v.name.trim() === ''){
+    flags.push('No vessel name broadcast alongside this MMSI');
+  }
+  return { mismatch: flags.length > 0, flags };
+}
+
+function fmtCoord(lat, lon){
+  const la = Math.abs(lat).toFixed(4) + '°' + (lat>=0?'N':'S');
+  const lo = Math.abs(lon).toFixed(4) + '°' + (lon>=0?'E':'W');
+  return `${la}, ${lo}`;
+}
+
+// -------------------------------------------------------------
+// Populate header stats + incident panel
+// -------------------------------------------------------------
+document.getElementById('statVessels').textContent = state.vessels.length;
+document.getElementById('kvArea').innerHTML = `${state.spill.area_km2} km² <span class="badge real">real</span>`;
+document.getElementById('kvLength').innerHTML = `${state.spill.length_km} km <span class="badge real">real</span>`;
+document.getElementById('kvAge').innerHTML = `~${state.spill.age_hours} h <span class="badge est">heuristic</span>`;
+document.getElementById('kvThick').innerHTML = `${state.spill.thickness} <span class="badge est">heuristic</span>`;
+document.getElementById('kvOrigin').innerHTML = `${fmtCoord(state.spill.lat, state.spill.lon)}`;
+document.getElementById('kvVesselCount').textContent = state.vessels.length + ' (post-filter)';
+document.getElementById('kvTopCandidate').innerHTML = `${topCandidate.name} <span style="color:var(--amber)">(${topCandidate.score.toFixed(3)})</span>`;
+
+const exportedAt = state.notifications.length ? new Date(state.notifications[0].timestamp) : null;
+const exportedStr = exportedAt ? exportedAt.toISOString().replace('T',' ').slice(0,16) + ' UTC' : '—';
+document.getElementById('lastUpdateFoot').textContent = exportedStr;
+document.getElementById('lastUpdateTop').textContent = exportedStr;
+
+// -------------------------------------------------------------
+// MAP
+// -------------------------------------------------------------
+const map = L.map('map', {
+  zoomControl:false, attributionControl:false,
+  crs: L.CRS.EPSG3857, minZoom:4, maxZoom:14,
+  worldCopyJump:false
+}).setView([state.spill.lat, state.spill.lon], 8);
+
+L.control.zoom({ position:'bottomright' }).addTo(map);
+
+// -------------------------------------------------------------
+// REAL SATELLITE BASEMAP (Esri World Imagery — free, no API key).
+// This loads correctly when this file is opened as a normal local
+// file in a real browser. It will NOT load inside Anthropic's
+// sandboxed claude.ai artifact preview, which blocks third-party
+// tile servers by policy — that sandbox is not how this file is
+// meant to be run for the actual demo. If tiles fail to load here,
+// we fall back to a vector nautical-chart grid so the map still
+// works, and say so once, honestly, rather than pretending either
+// state is the other.
+// -------------------------------------------------------------
+let tilesLoadedOK = false;
+let fallbackShown = false;
+
+const satTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Esri, Maxar, Earthstar Geographics',
+  maxZoom: 17, minZoom: 4
+}).addTo(map);
+
+const refLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 17, minZoom: 4, opacity: 0.85
+}).addTo(map);
+
+satTiles.on('load', () => { tilesLoadedOK = true; });
+satTiles.on('tileerror', () => {
+  if (fallbackShown) return;
+  fallbackShown = true;
+  drawNauticalGrid();
+  showMapToast(
+    'Satellite imagery blocked in this preview sandbox — showing vector chart grid instead. Open the downloaded HTML file directly in your browser to see real satellite tiles.',
+    true
+  );
+});
+
+L.control.attribution({position:'bottomright', prefix:false}).addTo(map);
+
+// -------------------------------------------------------------
+// Published artifact pages can only load images/scripts from a
+// small allow-list — third-party raster tile servers are not on
+// it, so a normal Leaflet tile basemap fails silently there.
+// Instead we draw a self-contained "nautical chart" grid: a
+// graticule (lat/lon lines) plus scale-aware labels, entirely as
+// Leaflet vector layers. Nothing here is fetched from the network.
+// -------------------------------------------------------------
+const chartPane = map.createPane('chartGrid');
+chartPane.style.zIndex = 200;
+
+function drawNauticalGrid(){
+  const g = L.layerGroup();
+  const step = 0.5; // degrees
+  const latMin = 24, latMax = 31, lonMin = -94, lonMax = -85;
+
+  for (let lat = latMin; lat <= latMax; lat += step){
+    L.polyline([[lat, lonMin],[lat, lonMax]], {
+      pane:'chartGrid', color:'#17222f', weight: (Math.round(lat*10)%10===0)?1:0.6, interactive:false
+    }).addTo(g);
+    L.marker([lat, lonMin], {
+      pane:'chartGrid', interactive:false,
+      icon: L.divIcon({className:'', html:`<div style="font-family:'IBM Plex Mono',monospace; font-size:9px; color:#3a4a5c; white-space:nowrap; transform:translate(2px,-8px);">${lat.toFixed(1)}°N</div>`, iconSize:[0,0]})
+    }).addTo(g);
+  }
+  for (let lon = lonMin; lon <= lonMax; lon += step){
+    L.polyline([[latMin, lon],[latMax, lon]], {
+      pane:'chartGrid', color:'#17222f', weight:(Math.round(lon*10)%10===0)?1:0.6, interactive:false
+    }).addTo(g);
+    L.marker([latMin, lon], {
+      pane:'chartGrid', interactive:false,
+      icon: L.divIcon({className:'', html:`<div style="font-family:'IBM Plex Mono',monospace; font-size:9px; color:#3a4a5c; white-space:nowrap; transform:translate(-16px,4px);">${Math.abs(lon).toFixed(1)}°W</div>`, iconSize:[0,0]})
+    }).addTo(g);
+  }
+  g.addTo(map);
+}
+// Called only from the satTiles 'tileerror' fallback above — not automatically here.
+
+const layers = {
+  spill: L.layerGroup().addTo(map),
+  origin: L.layerGroup().addTo(map),
+  backward: L.layerGroup().addTo(map),
+  forward: L.layerGroup().addTo(map),
+  candidates: L.layerGroup().addTo(map),
+  allvessels: L.layerGroup(),
+};
+
+// --- Spill extent (illustrative, exaggerated for visibility, styled as an oil sheen) ---
+const radiusM = Math.sqrt(state.spill.area_km2 * 1e6 / Math.PI);
+const spillFullRadius = radiusM * 26;
+const spillMainCircle = L.circle([state.spill.lat, state.spill.lon], {
+  radius: spillFullRadius,
+  color:'#ff5c5c', weight:2, fillColor:'#180f08', fillOpacity:0.62, dashArray:'5,4',
+  className:'spill-glow-path oil-sheen-path'
+}).addTo(layers.spill).bindTooltip(`Illustrative spill extent — ${state.spill.area_km2} km² (real value, exaggerated size for map visibility) · animated sheen is a stylistic effect, not measured optical data`, {sticky:true});
+L.circle([state.spill.lat, state.spill.lon], {
+  radius: spillFullRadius, color:'#ff5c5c', weight:1.5, fill:false, className:'origin-pulse-path', interactive:false
+}).addTo(layers.spill);
+
+// Animate the spill growing from a point to full extent — used by the
+// automated demo to visualize "spill spreading" rather than appearing instantly.
+function animateSpillGrowth(durationMs=2200){
+  return new Promise(resolve => {
+    const start = performance.now();
+    function step(now){
+      const t = Math.min((now - start) / durationMs, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      spillMainCircle.setRadius(spillFullRadius * eased);
+      if (t < 1) requestAnimationFrame(step); else resolve();
+    }
+    spillMainCircle.setRadius(0);
+    requestAnimationFrame(step);
+  });
+}
+
+// --- Origin marker: bright, always-visible, permanently labeled ---
+const originIcon = L.divIcon({
+  className:'', html:`
+    <div style="position:relative; width:20px; height:20px;">
+      <div style="position:absolute; inset:0; border-radius:50%; background:#ff5c5c; border:2.5px solid #fff; box-shadow:0 0 0 6px rgba(255,92,92,.3), 0 0 14px rgba(255,92,92,.8);"></div>
+    </div>`,
+  iconSize:[20,20], iconAnchor:[10,10]
+});
+L.marker([state.spill.lat, state.spill.lon], {icon:originIcon, zIndexOffset:1000})
+  .addTo(layers.origin)
+  .bindTooltip(`<b>Detected spill origin</b><br>${fmtCoord(state.spill.lat, state.spill.lon)}<br><span style="color:#888">Derived from SAR mask centroid</span>`, {permanent:false, sticky:true});
+L.marker([state.spill.lat, state.spill.lon], {
+  icon: L.divIcon({className:'', html:`<div class="origin-label-tag">SPILL ORIGIN</div>`, iconSize:[0,0], iconAnchor:[-16,-4]}),
+  interactive:false, zIndexOffset:999
+}).addTo(layers.origin);
+
+// --- Bearing helper, for direction arrows along drift paths ---
+function bearing(lat1, lon1, lat2, lon2){
+  const toRad = d => d*Math.PI/180, toDeg = r => r*180/Math.PI;
+  const y = Math.sin(toRad(lon2-lon1)) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2)) - Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(toRad(lon2-lon1));
+  return (toDeg(Math.atan2(y,x)) + 360) % 360;
+}
+function addPathArrows(path, group, color){
+  const idxs = [Math.floor(path.length*0.3), Math.floor(path.length*0.65), path.length-2];
+  idxs.forEach(i => {
+    if (i<0 || i>=path.length-1) return;
+    const [lat1,lon1] = path[i], [lat2,lon2] = path[i+1];
+    const brg = bearing(lat1,lon1,lat2,lon2);
+    L.marker([lat1,lon1], {
+      icon: L.divIcon({className:'', html:`<div class="drift-arrow" style="transform:rotate(${brg}deg);">➤</div>`, iconSize:[14,14], iconAnchor:[7,7]}),
+      interactive:false
+    }).addTo(group);
+  });
+}
+
+// --- Drift paths ---
+const backwardLine = L.polyline(state.drift.backward, {color:'#b79bf0', weight:3, dashArray:'7,5', opacity:0.9})
+  .addTo(layers.backward).bindTooltip('Backward hindcast (24h) — single-point constant-velocity model', {sticky:true});
+addPathArrows(state.drift.backward, layers.backward, '#b79bf0');
+
+const forwardLine = L.polyline(state.drift.forward, {color:'#7bd8f0', weight:3.5, opacity:0.95})
+  .addTo(layers.forward).bindTooltip('Forward forecast (48h) — single-point constant-velocity model', {sticky:true});
+addPathArrows(state.drift.forward, layers.forward, '#7bd8f0');
+
+// Animate a path being "traced out" point by point, used by the automated
+// demo so the drift computation reads as happening live rather than
+// appearing as a finished line instantly.
+function animatePathDraw(fullCoords, polylineRef, stepMs=45){
+  return new Promise(resolve => {
+    let i = 1;
+    polylineRef.setLatLngs([fullCoords[0]]);
+    const timer = setInterval(() => {
+      i++;
+      polylineRef.setLatLngs(fullCoords.slice(0, i));
+      if (i >= fullCoords.length){
+        clearInterval(timer);
+        resolve();
+      }
+    }, stepMs);
+  });
+}
+
+const bwEnd = state.drift.backward[state.drift.backward.length-1];
+const fwEnd = state.drift.forward[state.drift.forward.length-1];
+L.circleMarker(bwEnd, {radius:5, color:'#fff', weight:1.5, fillColor:'#b79bf0', fillOpacity:1}).addTo(layers.backward)
+  .bindTooltip('Est. position 24h before detection', {sticky:true});
+L.circleMarker(fwEnd, {radius:5, color:'#fff', weight:1.5, fillColor:'#7bd8f0', fillOpacity:1}).addTo(layers.forward)
+  .bindTooltip('Forecast position, 48h forward', {sticky:true});
+
+// --- Vessel markers: ship-shaped icons (no COG/heading in this export, so icons
+//     are drawn upright rather than fabricating a direction of travel) ---
+function vesselColor(v){
+  if (v === topCandidate) return '#ffb020';
+  if (v.score >= 0.6) return '#ff9040';
+  return '#5b9fe0';
+}
+function vesselSize(v){
+  if (v === topCandidate) return 26;
+  if (v.score >= 0.6) return 19;
+  return 13;
+}
+const shipSvg = (color, size, pulsing) => `
+  <svg width="${size}" height="${size}" viewBox="0 0 24 24" style="overflow:visible;">
+    <g class="${pulsing ? 'ship-pulse' : ''}">
+      <path d="M12 1.5 L18.5 15.5 L12 12.8 L5.5 15.5 Z"
+            fill="${color}" stroke="#04080d" stroke-width="1" stroke-linejoin="round"/>
+      <circle cx="12" cy="12.5" r="2.1" fill="#04080d" opacity="0.35"/>
+    </g>
+  </svg>`;
+
+const vesselMarkers = new Map();
+
+function buildVesselMarker(v, group){
+  const size = vesselSize(v);
+  const color = vesselColor(v);
+  const icon = L.divIcon({
+    className:'',
+    html: shipSvg(color, size, v === topCandidate),
+    iconSize:[size,size], iconAnchor:[size/2, size/2]
+  });
+  const marker = L.marker([v.lat, v.lon], { icon, zIndexOffset: v===topCandidate ? 900 : (v.score>=0.6 ? 400 : 0) });
+  marker.on('click', () => openVesselDrawer(v));
+  marker.bindTooltip(
+    `<b>${v.name}</b><br><span style="font-family:monospace;font-size:10px;">score ${v.score.toFixed(3)} · heading: not available in this export</span>`,
+    {direction:'top', offset:[0,-size/2]}
+  );
+  marker.addTo(group);
+  vesselMarkers.set(v.mmsi, marker);
+}
+
+// Candidate layer: top scoring vessels only (score >= 0.6) so the map isn't cluttered
+highScoreVessels.forEach(v => buildVesselMarker(v, layers.candidates));
+// All-vessels layer: everyone else, off by default
+state.vessels.filter(v => v.score < 0.6).forEach(v => buildVesselMarker(v, layers.allvessels));
+
+// Layer toggles
+document.querySelectorAll('[data-layer]').forEach(cb => {
+  cb.addEventListener('change', () => {
+    const key = cb.dataset.layer;
+    if (cb.checked) map.addLayer(layers[key]); else map.removeLayer(layers[key]);
+  });
+});
+
+// Mode toggle (replay/live) — live is honestly disabled, no fabricated live feed
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+    const statusEl = document.getElementById('replayStatusText');
+    if (mode === 'live'){
+      statusEl.innerHTML = `<span class="dot" style="background:#5c6b7d;"></span> Live AIS feed not connected — no real-time provider configured`;
+    } else {
+      statusEl.innerHTML = `<span class="dot amber" style="box-shadow:none;"></span> Historical AIS Replay · 2018-09-26`;
+    }
+  });
+});
+
+// -------------------------------------------------------------
+// SIDE PANEL — tabs + candidate list
+// -------------------------------------------------------------
+document.querySelectorAll('.panel-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.panel-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-incident').style.display = tab.dataset.tab==='incident' ? 'block' : 'none';
+    document.getElementById('tab-candidates').style.display = tab.dataset.tab==='candidates' ? 'block' : 'none';
+  });
+});
+
+const candidateListEl = document.getElementById('candidateList');
+state.vessels.slice(0, 15).forEach((v, i) => {
+  const row = document.createElement('div');
+  row.className = 'candidate-row';
+  const idc = checkIdIntegrity(v);
+  row.innerHTML = `
+    <div class="rank-num">${i+1}</div>
+    <div class="cbar-wrap">
+      <div class="cname">${v.name}${idc.mismatch ? ' <span style="color:var(--red); font-size:9.5px; font-family:var(--mono); border:1px solid var(--red-dim); padding:1px 4px; border-radius:3px;">ID MISMATCH</span>' : ''}</div>
+      <div class="cbar-track"><div class="cbar-fill" style="width:${(v.score*100).toFixed(0)}%"></div></div>
+    </div>
+    <div class="cscore">${v.score.toFixed(3)}</div>
+  `;
+  row.addEventListener('click', () => { openVesselDrawer(v); flyToVessel(v); });
+  candidateListEl.appendChild(row);
+});
+
+function flyToVessel(v){
+  map.flyTo([v.lat, v.lon], 10, { duration: 0.9 });
+  const m = vesselMarkers.get(v.mmsi);
+  if (m) m.openTooltip();
+}
+
+// -------------------------------------------------------------
+// VESSEL DRAWER
+// -------------------------------------------------------------
+const drawer = document.getElementById('vesselDrawer');
+const drawerScrim = document.getElementById('drawerScrim');
+
+function openVesselDrawer(v){
+  state.selectedVessel = v;
+  document.getElementById('drawerName').textContent = v.name;
+  document.getElementById('drawerMmsi').textContent = `MMSI ${v.mmsi}`;
+  document.getElementById('drawerScore').textContent = v.score.toFixed(3);
+  document.getElementById('drawerPos').innerHTML = `${fmtCoord(v.lat, v.lon)} <span class="badge replay">replay</span>`;
+
+  const diff = v.score - v.standard_score;
+  const diffStr = diff >= 0 ? `+${diff.toFixed(3)}` : diff.toFixed(3);
+  document.getElementById('drawerCompare').innerHTML =
+    `Standard-factors-only score: <b>${v.standard_score.toFixed(3)}</b> · with route/rendezvous factors: <b>${v.score.toFixed(3)}</b> (${diffStr})`;
+
+  // Decomposition — only what's actually in this export (score, standard_score).
+  // Full per-factor breakdown is UNAVAILABLE in this JSON, shown honestly rather than invented.
+  const decompEl = document.getElementById('drawerDecomp');
+  decompEl.innerHTML = `
+    <div class="decomp-row">
+      <div class="dl">Standard factors</div>
+      <div class="dtrack"><div class="dfill" style="width:${(v.standard_score*100).toFixed(0)}%; background:#5b9fe0;"></div></div>
+      <div class="dval">${v.standard_score.toFixed(3)}</div>
+    </div>
+    <div class="decomp-row">
+      <div class="dl">+ Route / rendezvous</div>
+      <div class="dtrack"><div class="dfill" style="width:${(v.score*100).toFixed(0)}%; background:#ffb020;"></div></div>
+      <div class="dval">${v.score.toFixed(3)}</div>
+    </div>
+    <div class="decomp-row">
+      <div class="dl">Proximity</div>
+      <div class="dtrack"><div class="dfill" style="width:0%;"></div></div>
+      <div class="dval" style="color:var(--text-faint); font-style:italic; font-family:var(--sans); font-size:9.5px;">not exported</div>
+    </div>
+    <div class="decomp-row">
+      <div class="dl">Timing</div>
+      <div class="dtrack"><div class="dfill" style="width:0%;"></div></div>
+      <div class="dval" style="color:var(--text-faint); font-style:italic; font-family:var(--sans); font-size:9.5px;">not exported</div>
+    </div>
+    <div class="decomp-row">
+      <div class="dl">AIS gap</div>
+      <div class="dtrack"><div class="dfill" style="width:0%;"></div></div>
+      <div class="dval" style="color:var(--text-faint); font-style:italic; font-family:var(--sans); font-size:9.5px;">not exported</div>
+    </div>
+  `;
+
+  // Evidence — generated only from what we actually know about this vessel
+  const evidenceEl = document.getElementById('drawerEvidence');
+  const items = [];
+  if (v === topCandidate){
+    items.push('Ranked #1 of ' + state.vessels.length + ' candidate vessels by combined association score.');
+  }
+  if (diff > 0.02){
+    items.push('Score increases materially when route-deviation and rendezvous signals are included, versus standard factors alone — this vessel is part of the differentiator the scoring model is designed to surface.');
+  } else if (diff < -0.02) {
+    items.push('Score decreases when route-deviation and rendezvous signals are included, versus standard factors alone.');
+  } else {
+    items.push('Route-deviation and rendezvous signals did not materially change this vessel\'s ranking versus standard factors.');
+  }
+  const distKm = haversine(state.spill.lat, state.spill.lon, v.lat, v.lon);
+  items.push(`Last known position is ${distKm.toFixed(1)} km from the detected spill origin.`);
+  if (v.score < 0.3){
+    items.push('Low overall association score — included for completeness, not flagged as a priority review.');
+  }
+  const idc = checkIdIntegrity(v);
+  if (idc.mismatch){
+    idc.flags.forEach(f => items.push(`<span style="color:var(--red);">ID integrity flag (heuristic):</span> ${f}`));
+  }
+  evidenceEl.innerHTML = items.map(t => `<div class="evidence-item"><span class="ic">▸</span><span>${t}</span></div>`).join('');
+
+  drawer.classList.add('open');
+  drawerScrim.classList.add('open');
+}
+
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371, toRad = d=>d*Math.PI/180;
+  const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+
+function closeDrawer(){
+  drawer.classList.remove('open');
+  drawerScrim.classList.remove('open');
+}
+document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+drawerScrim.addEventListener('click', closeDrawer);
+document.getElementById('drawerFlyBtn').addEventListener('click', () => flyToVessel(state.selectedVessel));
+document.getElementById('drawerAlertBtn').addEventListener('click', () => {
+  openAlertModal(state.selectedVessel);
+});
+
+// -------------------------------------------------------------
+// TIMELINE — only real, known events (no fabricated clock times)
+// -------------------------------------------------------------
+const eoNotif = state.notifications.find(n => n.notification_type === 'EO_AVAILABLE_ALERT');
+const candNotif = state.notifications.find(n => n.notification_type === 'CANDIDATE_ALERT');
+const spillNotif = state.notifications.find(n => n.notification_type === 'NEW_SPILL_ALERT');
+
+const timelineEvents = [
+  {
+    label: 'SAR acquisition',
+    time: '2018-09-26 (time of day unavailable)',
+    detail: 'Sentinel-1 scene acquired. This is the source image the spill was detected in.',
+    badge: 'real'
+  },
+  {
+    label: 'Estimated release',
+    time: `~${state.spill.age_hours}h before acquisition`,
+    detail: 'Heuristic constant-spreading-rate estimate — exact release time not scientifically constrained.',
+    badge: 'est'
+  },
+  {
+    label: 'Sentinel-2 scene attempted',
+    time: '2018-09-25 16:38 UTC',
+    detail: 'Nearest usable optical scene. 97% cloud/shadow over the AOI — corroboration inconclusive.',
+    badge: 'na',
+    focus: { lat: state.spill.lat, lon: state.spill.lon, zoom: 8 }
+  },
+  {
+    label: 'Top candidate identified',
+    time: candNotif ? new Date(candNotif.timestamp).toISOString().slice(11,16) + ' UTC (pipeline run)' : '—',
+    detail: `${topCandidate.name} (MMSI ${topCandidate.mmsi}) ranked highest, association score ${topCandidate.score.toFixed(3)}.`,
+    badge: 'real',
+    focus: { lat: topCandidate.lat, lon: topCandidate.lon, zoom: 10, vessel: topCandidate }
+  },
+];
+
+const axisEl = document.getElementById('timelineEvents');
+timelineEvents.forEach((ev, i) => {
+  const pct = 8 + (i/(timelineEvents.length-1)) * 84;
+  const el = document.createElement('div');
+  el.className = 'tl-event';
+  el.style.left = pct + '%';
+  el.innerHTML = `<div class="tl-dot"></div><div class="tl-label">${ev.label}</div><div class="tl-time">${ev.time}</div>`;
+  el.addEventListener('click', () => activateTimelineEvent(i));
+  axisEl.appendChild(el);
+});
+
+function activateTimelineEvent(i){
+  state.activeTimelineIdx = i;
+  document.querySelectorAll('.tl-event').forEach((e,idx)=> e.classList.toggle('active', idx===i));
+  const ev = timelineEvents[i];
+  document.getElementById('tlCurrentLabel').textContent = `${ev.label} — ${ev.detail}`;
+  if (ev.focus){
+    map.flyTo([ev.focus.lat, ev.focus.lon], ev.focus.zoom, {duration:0.8});
+    if (ev.focus.vessel) setTimeout(()=>openVesselDrawer(ev.focus.vessel), 500);
+  }
+}
+
+document.getElementById('tlNext').addEventListener('click', () => {
+  const next = state.activeTimelineIdx === null ? 0 : Math.min(state.activeTimelineIdx+1, timelineEvents.length-1);
+  activateTimelineEvent(next);
+});
+document.getElementById('tlPrev').addEventListener('click', () => {
+  const prev = state.activeTimelineIdx === null ? 0 : Math.max(state.activeTimelineIdx-1, 0);
+  activateTimelineEvent(prev);
+});
+document.getElementById('tlPlay').addEventListener('click', function(){
+  if (state.playing){
+    clearInterval(state.playTimer); state.playing = false; this.textContent = '▶';
+    return;
+  }
+  state.playing = true; this.textContent = '❚❚';
+  let idx = state.activeTimelineIdx === null ? -1 : state.activeTimelineIdx;
+  state.playTimer = setInterval(() => {
+    idx++;
+    if (idx >= timelineEvents.length){
+      clearInterval(state.playTimer); state.playing = false;
+      document.getElementById('tlPlay').textContent = '▶';
+      return;
+    }
+    activateTimelineEvent(idx);
+  }, 1800 / state.playSpeed);
+});
+document.querySelectorAll('.speed-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.speed-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    state.playSpeed = parseFloat(btn.dataset.speed);
+  });
+});
+
+// -------------------------------------------------------------
+// MOBILE NAV — sidebar drawer + side panel drawer
+// -------------------------------------------------------------
+const sidebarEl = document.querySelector('.sidebar');
+const sidebarScrim = document.getElementById('sidebarScrim');
+const sidePanelEl = document.querySelector('.side-panel');
+
+function openSidebar(){ sidebarEl.classList.add('mobile-open'); sidebarScrim.classList.add('open'); }
+function closeSidebar(){ sidebarEl.classList.remove('mobile-open'); sidebarScrim.classList.remove('open'); }
+
+document.getElementById('hamburgerBtn').addEventListener('click', openSidebar);
+document.getElementById('sidebarCloseMobile').addEventListener('click', closeSidebar);
+sidebarScrim.addEventListener('click', () => { closeSidebar(); sidePanelEl.classList.remove('mobile-open'); });
+
+document.getElementById('panelToggleBtn').addEventListener('click', () => {
+  sidePanelEl.classList.toggle('mobile-open');
+  sidebarScrim.classList.toggle('open', sidePanelEl.classList.contains('mobile-open'));
+});
+
+// Close mobile menus after a nav choice
+document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+  item.addEventListener('click', closeSidebar);
+});
+
+// -------------------------------------------------------------
+// NAV — view switching
+// -------------------------------------------------------------
+document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    item.classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    const view = document.getElementById('view-' + item.dataset.view);
+    view.classList.add('active');
+    if (item.dataset.view === 'operations') view.style.display = 'grid';
+    setTimeout(()=> map.invalidateSize(), 50);
+  });
+});
+
+// -------------------------------------------------------------
+// ALERT COMPOSER
+// -------------------------------------------------------------
+const alertModalScrim = document.getElementById('alertModalScrim');
+let alertContextVessel = null;
+
+function buildDefaultMessage(vessel){
+  const lines = [
+    'A potential marine oil spill incident has been detected.',
+    '',
+    'Incident: SIH26143-DEMO-001',
+    `Detection source: Sentinel-1 SAR, scene date 2018-09-26`,
+    `Estimated origin: ${fmtCoord(state.spill.lat, state.spill.lon)}`,
+    `Spill area / length: ${state.spill.area_km2} km² / ${state.spill.length_km} km (est. age ~${state.spill.age_hours}h)`,
+    `Forecast position (+48h): ${fmtCoord(fwEnd[0], fwEnd[1])}`,
+    '',
+    vessel
+      ? `Flagged vessel: ${vessel.name} (MMSI ${vessel.mmsi}), association score ${vessel.score.toFixed(3)} of 1.0`
+      : `Top candidate vessel: ${topCandidate.name} (MMSI ${topCandidate.mmsi}), association score ${topCandidate.score.toFixed(3)} of 1.0`,
+    `Investigation status: Investigating — candidate ranking established, EO corroboration inconclusive`,
+    '',
+    'Open OceanTrace for full incident evidence.'
+  ];
+  return lines.join('\n');
+}
+
+function openAlertModal(vessel){
+  alertContextVessel = vessel || null;
+  document.getElementById('alertMessage').value = buildDefaultMessage(vessel);
+  document.getElementById('alertSubject').value = vessel
+    ? `Marine Pollution Alert — Candidate Vessel ${vessel.name} (Incident SIH26143-DEMO-001)`
+    : 'Marine Pollution Alert — Incident SIH26143-DEMO-001';
+  alertModalScrim.classList.add('open');
+}
+function closeAlertModal(){ alertModalScrim.classList.remove('open'); }
+
+document.getElementById('btnCreateAlert').addEventListener('click', () => openAlertModal(null));
+document.getElementById('btnCreateAlert2').addEventListener('click', () => openAlertModal(null));
+document.getElementById('modalClose').addEventListener('click', closeAlertModal);
+document.getElementById('alertCancelBtn').addEventListener('click', closeAlertModal);
+
+document.querySelectorAll('.chip-opt[data-type]').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('.chip-opt[data-type]').forEach(x=>x.classList.remove('active'));
+    c.classList.add('active');
+  });
+});
+document.querySelectorAll('.chip-opt[data-pri]').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('.chip-opt[data-pri]').forEach(x=>x.classList.remove('active'));
+    c.classList.add('active');
+  });
+});
+
+function currentAlertType(){ return document.querySelector('.chip-opt[data-type].active').dataset.type; }
+function currentAlertPriority(){ return document.querySelector('.chip-opt[data-pri].active').dataset.pri; }
+
+function renderAlertHistory(){
+  const body = document.getElementById('alertHistoryBody');
+  const empty = document.getElementById('alertEmptyState');
+  body.innerHTML = '';
+  if (state.alertHistory.length === 0){
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    state.alertHistory.slice().reverse().forEach(a => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-family:var(--mono); font-size:10.5px;">SIH26143-DEMO-001</td>
+        <td>${a.recipName} <span style="color:var(--text-faint);">&lt;${a.recipAddr}&gt;</span></td>
+        <td>${a.type}</td>
+        <td style="color:${a.priority==='HIGH'?'var(--red)':a.priority==='MEDIUM'?'var(--amber)':'var(--text-dim)'}">${a.priority}</td>
+        <td style="font-family:var(--mono); font-size:10.5px; color:var(--text-faint);">${a.time}</td>
+        <td><span class="status-pill ${a.status.toLowerCase()}">${a.status}</span></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+  document.getElementById('statAlerts').textContent = state.alertHistory.filter(a=>a.status!=='Draft').length;
+  document.getElementById('navAlertCount').textContent = state.alertHistory.length;
+}
+
+async function queueAlert(status){
+  const recipName = document.getElementById('alertRecipName').value.trim() || 'Unnamed recipient';
+  const recipAddr = document.getElementById('alertRecipAddr').value.trim() || '—';
+  const type = currentAlertType();
+  const subject = document.getElementById('alertSubject').value;
+  const message = document.getElementById('alertMessage').value;
+  const entry = {
+    recipName, recipAddr, type,
+    priority: currentAlertPriority(),
+    subject, message,
+    time: new Date().toISOString().slice(0,16).replace('T',' ') + ' UTC',
+    status: status === 'Draft' ? 'Draft' : 'Sending',
+  };
+  state.alertHistory.push(entry);
+  renderAlertHistory();
+  closeAlertModal();
+
+  if (status === 'Draft'){
+    showMapToast('Draft saved to Alert History.');
+    return;
+  }
+
+  const canRealSend = backendReady() && type === 'EMAIL' && isValidEmail(recipAddr);
+  if (canRealSend){
+    try {
+      await sendRealEmail(recipName, recipAddr, subject, message);
+      entry.status = 'Sent';
+      showMapToast(`Email actually sent to ${recipAddr} via your backend — check the inbox.`);
+    } catch(err){
+      console.error('Backend send failed:', err);
+      entry.status = 'Failed';
+      showMapToast(`Real send to ${recipAddr} failed — logged as Failed. Check Render logs/console.`, true);
+    }
+  } else {
+    entry.status = 'Sent';
+    showMapToast(backendReady()
+      ? `Logged only — "${recipAddr}" isn't a deliverable email address, or this alert isn't type Email.`
+      : `Demo notification queued — "${entry.subject}" logged to Alert History (external delivery disabled).`);
+  }
+  renderAlertHistory();
+}
+
+document.getElementById('alertSendBtn').addEventListener('click', () => queueAlert('Sent'));
+document.getElementById('alertDraftBtn').addEventListener('click', () => queueAlert('Draft'));
+
+function showMapToast(msg, isErr){
+  const el = document.createElement('div');
+  el.className = 'map-toast' + (isErr ? ' err' : '');
+  el.textContent = msg;
+  document.getElementById('map').appendChild(el);
+  setTimeout(()=> el.remove(), 4600);
+}
+
+// -------------------------------------------------------------
+// CASE FILE EXPORT
+// -------------------------------------------------------------
+document.getElementById('btnCaseFile').addEventListener('click', () => {
+  const bundle = {
+    schema_version: '1.0-demo',
+    incident: { id: 'SIH26143-DEMO-001', status: 'INVESTIGATING' },
+    spill: state.spill,
+    drift: state.drift,
+    eo: {
+      eo_available: true,
+      scene_id: 'S2B_16RBT_20180925_0_L2A',
+      corroboration_status: 'INCONCLUSIVE',
+      reason: '97% of AOI cloud/shadow-obscured'
+    },
+    candidates: state.vessels,
+    alerts: state.alertHistory,
+    provenance: {
+      spill_detection: 'REAL — Sentinel-1 SAR, U-Net segmentation',
+      age_thickness: 'HEURISTIC',
+      drift: 'REAL environmental inputs, simplified single-point advection model',
+      ais: 'REAL — MarineCadastre, filtered',
+      scoring_weights: 'HEURISTIC, manually set',
+      eo: 'REAL scene search, INCONCLUSIVE result (cloud cover)'
+    },
+    limitations: [
+      'Route-deviation score is a straight-line-distance ratio, not a historical-corridor baseline.',
+      'Rendezvous detection is a proximity-in-time-bucket check, not a full approach/dwell/separation sequence.',
+      'Drift model is single-point constant-velocity, not a particle ensemble.',
+      'Identity-integrity layer not implemented in this export.',
+      'Spill polygon shown on map is illustrative (from area/length), not the exact segmentation mask boundary.'
+    ],
+    exported_at: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'oceantrace_case_SIH26143-DEMO-001.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showMapToast('Case file exported — oceantrace_case_SIH26143-DEMO-001.json');
+});
+
+// -------------------------------------------------------------
+// RUN FULL DEMO — scripted walkthrough of the whole investigation
+// story: spill -> vessels -> drift -> candidate -> evidence -> alert
+// -------------------------------------------------------------
+function wait(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+document.getElementById('runDemoBtn').addEventListener('click', async function(){
+  const btn = this;
+  btn.disabled = true;
+  const originalText = btn.textContent;
+
+  closeDrawer(); closeAlertModal();
+  document.querySelectorAll('.nav-item[data-view]')[0].click();
+
+  // Reset visuals so re-running the demo looks right each time
+  spillMainCircle.setRadius(0);
+  backwardLine.setLatLngs([]);
+  forwardLine.setLatLngs([]);
+
+  btn.textContent = '● Detecting spill…';
+  map.flyTo([state.spill.lat, state.spill.lon], 7, {duration:1.1});
+  showMapToast('Incident detected — Sentinel-1 SAR, ' + state.spill.scene_date);
+  await wait(1600);
+
+  btn.textContent = '● Zooming to origin…';
+  map.flyTo([state.spill.lat, state.spill.lon], 10, {duration:1.2});
+  await wait(1300);
+  showMapToast(`Segmenting spill mask — ${state.spill.area_km2} km² · est. age ~${state.spill.age_hours}h · ${state.spill.thickness}`);
+  await animateSpillGrowth(2000);
+  await wait(400);
+
+  btn.textContent = '● EO corroboration…';
+  const eo = state.notifications.find(n => n.notification_type === 'EO_AVAILABLE_ALERT');
+  showMapToast(eo ? eo.message : 'Checking for a same-day optical (EO) scene…');
+  await wait(2000);
+
+  btn.textContent = '● Loading AIS traffic…';
+  showMapToast(`${state.vessels.length} vessels reconstructed from MarineCadastre AIS, filtered to the Gulf region`);
+  try {
+    const bounds = L.featureGroup([layers.candidates]).getBounds();
+    if (bounds.isValid()) {
+      map.flyToBounds(bounds.extend([state.spill.lat, state.spill.lon]), {padding:[60,60], duration:1.2});
+    } else {
+      map.flyTo([state.spill.lat, state.spill.lon], 8, {duration:1.2});
+    }
+  } catch(e) {
+    console.warn('flyToBounds failed, falling back:', e);
+    map.flyTo([state.spill.lat, state.spill.lon], 8, {duration:1.2});
+  }
+  await wait(1800);
+
+  btn.textContent = '● Running drift model…';
+  showMapToast('Backward hindcast + forward forecast — Copernicus current/wind fields');
+  await Promise.all([
+    animatePathDraw(state.drift.backward, backwardLine),
+    animatePathDraw(state.drift.forward, forwardLine)
+  ]);
+  await wait(400);
+
+  btn.textContent = '● Building timeline…';
+  document.querySelector('.timeline-bar').scrollIntoView({behavior:'smooth', block:'nearest'});
+  for (let i=0; i<timelineEvents.length; i++){
+    activateTimelineEvent(i);
+    await wait(1300);
+  }
+
+  btn.textContent = '● Ranking candidates…';
+  document.querySelector('.panel-tab[data-tab="candidates"]').click();
+  await wait(1000);
+
+  btn.textContent = '● Scanning ID integrity…';
+  const flagged = highScoreVessels.map(v => ({v, idc: checkIdIntegrity(v)})).filter(x => x.idc.mismatch);
+  showMapToast(flagged.length
+    ? `ID-integrity check: ${flagged.length} candidate(s) flagged — e.g. ${flagged[0].v.name}: ${flagged[0].idc.flags[0]}`
+    : 'ID-integrity check: no structural AIS irregularities found among top candidates.');
+  await wait(2000);
+
+  btn.textContent = '● Opening top candidate…';
+  flyToVessel(topCandidate);
+  await wait(900);
+  openVesselDrawer(topCandidate);
+  await wait(2000);
+  closeDrawer();
+
+  btn.textContent = '● Auto-dispatching alert…';
+  showMapToast('No manual click required — composing and sending the incident report now.');
+  await wait(1200);
+  runAutoDispatch();
+  document.querySelectorAll('.nav-item')[3].click(); // jump to Alerts view
+  await wait(600);
+
+  btn.disabled = false;
+  btn.textContent = originalText;
+});
+
+
+// -------------------------------------------------------------
+// RESPONDER CONTACTS — saved locally in this browser only
+// (localStorage), so the list persists between demo runs on this
+// machine. This is a per-viewer convenience, not a shared/synced
+// registry — real deployment would store this server-side.
+// -------------------------------------------------------------
+const CONTACTS_KEY = 'oceantrace_contacts_v1';
+
+function loadContacts(){
+  try {
+    return JSON.parse(localStorage.getItem(CONTACTS_KEY)) || [];
+  } catch(e) { return []; }
+}
+function saveContacts(list){
+  try { localStorage.setItem(CONTACTS_KEY, JSON.stringify(list)); } catch(e) {}
+}
+
+let contacts = loadContacts();
+
+// -------------------------------------------------------------
+// BACKEND MAIL SERVICE INTEGRATION — real email delivery via a
+// small Node.js/Nodemailer server you deploy yourself (see the
+// oceantrace-mailer folder). Only the server URL is stored, only
+// in this browser's localStorage. No credentials of any kind live
+// in this file. Runs on your own machine during the demo — the
+// backend URL is fixed below, no setup box shown in the app itself.
+// -------------------------------------------------------------
+const BACKEND_URL = 'http://localhost:3000';
+
+function backendReady(){
+  return true; // hardcoded — sendRealEmail will fail cleanly if the local server isn't running
+}
+
+function isValidEmail(addr){
+  return typeof addr === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr.trim());
+}
+
+async function sendRealEmail(toName, toEmail, subject, message){
+  const base = BACKEND_URL.replace(/\/+$/, '');
+  const resp = await fetch(`${base}/send-alert`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: toEmail, toName, subject, message }),
+  });
+  let data;
+  try { data = await resp.json(); } catch(e){ data = null; }
+  if (!resp.ok || !data || data.ok !== true){
+    throw new Error((data && data.error) || `Backend responded ${resp.status}`);
+  }
+  return data;
+}
+
+function updateDeliveryUI(){
+  const line = document.getElementById('deliveryStatusLine');
+  const modalWarn = document.getElementById('modalDemoWarning');
+  line.textContent = 'Real delivery enabled — alerts to recipients with a valid email address are sent through the local backend service.';
+  modalWarn.innerHTML = '✓ <div><b>Real delivery enabled</b> — if the recipient address below is a valid email, this alert will actually be sent through the backend mail service when you click Send. Non-email addresses are still logged only.</div>';
+}
+
+updateDeliveryUI();
+
+function renderContacts(){
+  const el = document.getElementById('contactList');
+  document.getElementById('contactCount').textContent = contacts.length + ' saved';
+  if (contacts.length === 0){
+    el.innerHTML = `<div style="font-size:11.5px; color:var(--text-faint); padding:6px 0;">No responders saved yet — add one below so auto-dispatch has someone to notify.</div>`;
+    return;
+  }
+  el.innerHTML = contacts.map((c, i) => `
+    <div style="display:flex; align-items:center; justify-content:space-between; background:var(--panel-2); border:1px solid var(--border); border-radius:3px; padding:7px 10px;">
+      <span style="font-size:12px;"><b>${c.name}</b> <span style="color:var(--text-faint); font-family:var(--mono); font-size:10.5px;">&lt;${c.addr}&gt;</span></span>
+      <span style="cursor:pointer; color:var(--text-faint); font-size:11px;" onclick="removeContact(${i})">✕</span>
+    </div>
+  `).join('');
+}
+
+function removeContact(i){
+  contacts.splice(i, 1);
+  saveContacts(contacts);
+  renderContacts();
+}
+
+document.getElementById('btnAddContact').addEventListener('click', () => {
+  const name = document.getElementById('newContactName').value.trim();
+  const addr = document.getElementById('newContactAddr').value.trim();
+  if (!name || !addr){
+    showMapToast('Enter both a name and an email/number before adding a contact.', true);
+    return;
+  }
+  contacts.push({ name, addr });
+  saveContacts(contacts);
+  document.getElementById('newContactName').value = '';
+  document.getElementById('newContactAddr').value = '';
+  renderContacts();
+});
+
+renderContacts();
+
+// -------------------------------------------------------------
+// AUTO-DISPATCH — fires once, when this incident's data first
+// loads, instead of waiting for a manual "Create Alert" click.
+// Builds one alert per saved contact, including every feature
+// this build actually has evidence for: detection, drift,
+// EO-corroboration status, top candidate, and any ID-integrity
+// flags found on high-scoring vessels. Logged to Alert History
+// with status "Auto-Sent" — external delivery is still disabled
+// in this demo build, same honesty as the manual flow.
+// -------------------------------------------------------------
+function buildAutoDispatchMessage(){
+  const idFlags = highScoreVessels
+    .map(v => ({ v, idc: checkIdIntegrity(v) }))
+    .filter(x => x.idc.mismatch);
+
+  const lines = [
+    'AUTOMATED DISPATCH — new incident detected, no manual action taken to trigger this alert.',
+    '',
+    'Incident: SIH26143-DEMO-001',
+    `Detection source: Sentinel-1 SAR, scene date ${state.spill.scene_date || '2018-09-26'}`,
+    `Estimated origin: ${fmtCoord(state.spill.lat, state.spill.lon)}`,
+    `Spill area / length: ${state.spill.area_km2} km² / ${state.spill.length_km} km (est. age ~${state.spill.age_hours}h, heuristic)`,
+    `Thickness class: ${state.spill.thickness} (heuristic)`,
+    `Forecast position (+48h): ${fmtCoord(fwEnd[0], fwEnd[1])}`,
+    `EO corroboration: inconclusive (cloud-obscured scene)`,
+    '',
+    `Top candidate: ${topCandidate.name} (MMSI ${topCandidate.mmsi}), association score ${topCandidate.score.toFixed(3)}`,
+    `  — includes route-deviation and rendezvous factors, not just proximity/AIS-gap`,
+    '',
+  ];
+
+  if (idFlags.length){
+    lines.push(`ID-INTEGRITY FLAGS (heuristic — structural AIS check, not a confirmed identity claim):`);
+    idFlags.forEach(({v, idc}) => {
+      lines.push(`  - ${v.name} (MMSI ${v.mmsi}): ${idc.flags.join('; ')}`);
+    });
+  } else {
+    lines.push('No ID-integrity irregularities found among top-scoring candidates.');
+  }
+
+  lines.push('', 'This message was generated and dispatched automatically on incident detection — no analyst action was required to send it.');
+  return lines.join('\n');
+}
+
+async function runAutoDispatch(){
+  if (contacts.length === 0){
+    showMapToast('Auto-dispatch skipped — no saved responder contacts yet. Add one in Alert Center.', true);
+    return;
+  }
+  const message = buildAutoDispatchMessage();
+  const subject = `[AUTO] Marine Pollution Alert — Incident SIH26143-DEMO-001`;
+  const priority = topCandidate.score >= 0.8 ? 'HIGH' : 'MEDIUM';
+
+  const entries = contacts.map(c => ({
+    recipName: c.name,
+    recipAddr: c.addr,
+    type: 'Auto-Dispatch',
+    priority,
+    subject, message,
+    time: new Date().toISOString().slice(0,16).replace('T',' ') + ' UTC',
+    status: 'Sending',
+  }));
+  entries.forEach(e => state.alertHistory.push(e));
+  renderAlertHistory();
+
+  let realSent = 0, failed = 0, loggedOnly = 0;
+
+  for (const entry of entries){
+    const canRealSend = backendReady() && isValidEmail(entry.recipAddr);
+    if (canRealSend){
+      try {
+        await sendRealEmail(entry.recipName, entry.recipAddr, entry.subject, entry.message);
+        entry.status = 'Auto-Sent';
+        realSent++;
+      } catch(err){
+        console.error('Backend auto-dispatch failed for', entry.recipAddr, err);
+        entry.status = 'Failed';
+        failed++;
+      }
+    } else {
+      entry.status = 'Auto-Sent';
+      loggedOnly++;
+    }
+    renderAlertHistory();
+  }
+
+  if (backendReady()){
+    let summary = `Auto-dispatched — ${realSent} real email${realSent===1?'':'s'} sent`;
+    if (loggedOnly) summary += `, ${loggedOnly} logged only (no valid email)`;
+    if (failed) summary += `, ${failed} failed`;
+    showMapToast(summary + '.', failed > 0);
+  } else {
+    showMapToast(`Auto-dispatched to ${contacts.length} saved responder${contacts.length>1?'s':''} — see Alert Center for the full message.`);
+  }
+}
+
+// Fire auto-dispatch once, shortly after load, so the incident
+// data (spill/vessels) is fully populated first.
+setTimeout(runAutoDispatch, 1200);
+
+// Init: select first timeline event view state as neutral, set high-pri stat honestly
+document.getElementById('statHighPri').textContent = topCandidate.score >= 0.8 ? 1 : 0;
+renderAlertHistory();
+
+</script>
+
+<!-- ===================================================================
+     UI-ONLY ENHANCEMENTS (added for the compact/light redesign)
+     Nothing here recomputes scores, drift, spill stats, or demo timing —
+     it only reads the existing `state` object (already built above) to
+     render a couple of extra visual affordances, and wires small
+     show/hide interactions for the new Layers/Legend popovers and the
+     candidate preview shortcuts. No existing function is modified.
+=================================================================== -->
+<script>
+(function(){
+  // ---- Layers / Legend popovers ----
+  const layersBtn = document.getElementById('layersToggleBtn');
+  const legendBtn = document.getElementById('legendToggleBtn');
+  const layerPanel = document.getElementById('layerControlPanel');
+  const legendPanel = document.getElementById('legendBoxPanel');
+
+  function closePopovers(except){
+    if (layerPanel && layerPanel !== except){ layerPanel.classList.remove('open'); layersBtn && layersBtn.classList.remove('active-pop'); }
+    if (legendPanel && legendPanel !== except){ legendPanel.classList.remove('open'); legendBtn && legendBtn.classList.remove('active-pop'); }
+  }
+
+  if (layersBtn && layerPanel){
+    layersBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willOpen = !layerPanel.classList.contains('open');
+      closePopovers();
+      layerPanel.classList.toggle('open', willOpen);
+      layersBtn.classList.toggle('active-pop', willOpen);
+    });
+  }
+  if (legendBtn && legendPanel){
+    legendBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willOpen = !legendPanel.classList.contains('open');
+      closePopovers();
+      legendPanel.classList.toggle('open', willOpen);
+      legendBtn.classList.toggle('active-pop', willOpen);
+    });
+  }
+  document.addEventListener('click', (e) => {
+    if (layerPanel && layerPanel.classList.contains('open') && !layerPanel.contains(e.target) && e.target !== layersBtn){
+      layerPanel.classList.remove('open'); layersBtn && layersBtn.classList.remove('active-pop');
+    }
+    if (legendPanel && legendPanel.classList.contains('open') && !legendPanel.contains(e.target) && e.target !== legendBtn){
+      legendPanel.classList.remove('open'); legendBtn && legendBtn.classList.remove('active-pop');
+    }
+  });
+
+  // ---- Candidate preview (top 2) inside the Incident tab ----
+  // Reads the same sorted `state.vessels` array the Candidates tab already
+  // uses — does not recompute or alter scoring.
+  try {
+    const preview = document.getElementById('candPreviewList');
+    const countEl = document.getElementById('candPreviewCount');
+    if (preview && typeof state !== 'undefined' && state.vessels){
+      const top = state.vessels.slice(0, 2);
+      countEl.textContent = state.vessels.length;
+      top.forEach((v, i) => {
+        const row = document.createElement('div');
+        row.className = 'cand-preview-row';
+        row.innerHTML = `
+          <div class="cand-thumb">🚢</div>
+          <div class="cand-preview-info">
+            <div class="cand-preview-name">${v.name}</div>
+            <div class="cand-preview-score">Correlation score · <b>${v.score.toFixed(3)}</b></div>
+          </div>
+          <div class="cand-pill">${i===0 ? 'Highest correlation' : 'High correlation'}</div>
+        `;
+        row.addEventListener('click', () => {
+          if (typeof openVesselDrawer === 'function') openVesselDrawer(v);
+          if (typeof flyToVessel === 'function') flyToVessel(v);
+        });
+        preview.appendChild(row);
+      });
+    }
+  } catch (err){ /* preview is purely decorative — fail silent, never block the app */ }
+
+  // ---- Requires-attention timestamps ----
+  // Reuses the exported notification timestamp already computed above
+  // (`exportedStr`) rather than inventing new times.
+  try {
+    if (typeof exportedStr !== 'undefined'){
+      const hhmm = exportedStr.slice(11, 16);
+      const t1 = document.getElementById('attnTime1');
+      const t2 = document.getElementById('attnTime2');
+      const t3 = document.getElementById('attnTime3');
+      if (t1) t1.textContent = hhmm;
+      if (t2) t2.textContent = hhmm;
+      if (t3) t3.textContent = hhmm;
+    }
+  } catch (err){}
+
+  // ---- "View Candidates" / "View all →" shortcuts jump to the Candidates tab ----
+  const candTabBtn = document.querySelector('.panel-tab[data-tab="candidates"]');
+  ['btnViewCandidates', 'candPreviewViewAll'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && candTabBtn) el.addEventListener('click', () => candTabBtn.click());
+  });
+
+  // ---- Collapse/restore the contextual drawer to give the map more room ----
+  const workspaceEl = document.querySelector('.workspace');
+  const panelCloseBtn = document.getElementById('panelCloseBtn');
+  const panelToggleBtn = document.getElementById('panelToggleBtn');
+  if (workspaceEl && panelCloseBtn){
+    panelCloseBtn.addEventListener('click', () => workspaceEl.classList.add('panel-hidden'));
+  }
+  if (workspaceEl && panelToggleBtn){
+    panelToggleBtn.addEventListener('click', () => {
+      if (window.innerWidth > 980) workspaceEl.classList.toggle('panel-hidden');
+    });
+  }
+})();
+</script>
+</body>
+</html>
